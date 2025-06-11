@@ -1,0 +1,16 @@
+name: Block merges from forbidden branches
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  block:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if source branch is forbidden
+        run: |
+          if [[ "${{ github.head_ref }}" == "forbidden-branch" ]]; then
+            echo "Merging from 'forbidden-branch' is not allowed."
+            exit 1
+          fi
