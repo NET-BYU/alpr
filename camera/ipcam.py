@@ -7,9 +7,9 @@ import sys
 import queue                
 
 # Output Configuration         
-WIDTH = 2560   
-HEIGHT = 1440
-FRAMERATE = 30
+WIDTH = 1920   
+HEIGHT = 1080
+FRAMERATE = 60
 PORT = 8080
 
 libcamera_cmd = [
