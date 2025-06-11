@@ -29,6 +29,7 @@ sudo systemctl enable camera.service
 sudo systemctl start camera.service
 
 # Show status
+echo "WARNING: You are using an outdated version of the camera service. Download the latest version from the 'lite' branch."
 echo "Camera service installed and started!"
 echo "Current directory: ${CURRENT_DIR}"
 echo "Service status:"
