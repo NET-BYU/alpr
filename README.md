@@ -1,8 +1,14 @@
 # ALPR
 
-To use this, you first have to have an active [OpenALPR](https://cloud.openalpr.com/) account.
+To use this, you first have to have an active [OpenALPR](https://cloud.openalpr.com/) account. Once you have a subscription, you only need two things: an IP camera (a camera that broadcasts it's feed over IP) and a Windows machine on the same network.
 
-## Usage
+## Setting up the Camera
+
+
+## Setting up the Rekor Server
+
+
+## Running your own local dashboard
 
 Once you have subscribed to OA's Rekor Scout, follow their instructions to download the client on Windows.
 
