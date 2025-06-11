@@ -36,15 +36,15 @@ PORT = 8080
 
 Once you have at least one camera up and running, set up your Rekor Scout Agent on your Windows machine. Go to Rekor's page (or [this link](https://deb.openalpr.com/windows-agent/openalpr-agent-latest.exe)) and download the Rekor Agent. Run the installer. Along the way to opening the agent, it will ask you to sign in and verify your account. Once you have installed and signed it, it should land on this program:
 
-[program](media/program_empty.png)
+![program](media/program_empty.png)
 
 The program is very simple to run. First, add the camera you set up in the previous step. Click Add camera, select `IP Camera (Manual)` as the type, and then enter `http://<IP-ADDR>:<PORT>`, where `<IP-ADDR>` is the configured IP address of the camera, and `<PORT>` is the whatever port you setup (default is 8080)
 
-[program](media/program_camsetup.png)
+![program](media/program_camsetup.png)
 
 Then, click `test` to make sure your camera feed is working. You can skip the credentials it asks for (unless you have a custom camera setup).
 
-[program](media/program_camtest.png)
+![program](media/program_camtest.png)
 
 In this example, I am actually setting it up to view our 3D Printer's HTTP camera. Once you can see the feed, click `Save Camera`, name the camera, and it will show up on your dashboard.
 
@@ -74,7 +74,7 @@ You now have an openALPR mimic server that stores all its own local data. the se
 
 It also stores all the images received in the `plates` folder. The server webpage looks like this:
 
-[webpage](media/webpage.png)
+![webpage](media/webpage.png)
 
 To connect Rekor Scout to your local webserver:
 
