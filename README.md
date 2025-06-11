@@ -10,7 +10,7 @@ To connect the webserver to Rekor Scout:
 
 Open Rekor Scount:
 
-![program](media/progam.png)
+![program](media/program.png)
 
 Click on the top left, **Configure >> Data Destinations**:
 
