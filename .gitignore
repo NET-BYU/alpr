@@ -1,5 +1,6 @@
-**venv**
 **pycache**
-*.jsonl
-*.log
-plates/*
+
+server/.venv/*
+server/plates/*
+server/*.jsonl
+server/*.log

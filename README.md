@@ -52,14 +52,12 @@ That's it! Any license plates it sees will automatically be uploaded to your ser
 
 ## Running your own local dashboard
 
-This repository also contains an `alpr_integrated_server.py` which runs a local flask dashboard that mimics the OpenALPR dashboard, but runs locally without internet. To run it, first start the flask server, then point the Rekor Scout Agent to the server instead of the OpenALPR server.
-
-To use the server, your Windows computer must have python installed (I used python 3.10, but any modern Python should work). Once you have that installed, run
+This repository also contains an integrated server which runs a local flask dashboard that mimics the OpenALPR dashboard, but saves data locally. To run it, navigate to the server folder and run `server.ps1` to perform setup and then run the server:
 
 ```sh
-python3.10 -m venv .venv
-.\.venv\Scripts\activate
-python3.10 -m pip install flask
+cd path\to\alpr\server
+.\server setup  # performs setup tasks, like installing Python and venv. One time use
+.\server run    # runs the server. This won't work if you haven't run 'setup'
 ```
 
 to start the server, simply run
@@ -77,8 +75,6 @@ You now have an openALPR mimic server that stores all its own local data. the se
 It also stores all the images received in the `plates` folder. The server webpage looks like this:
 
 [webpage](media/webpage.png)
-
-_the error fetching data was because I wasn't running the server when I took the picture._
 
 To connect Rekor Scout to your local webserver:
 
