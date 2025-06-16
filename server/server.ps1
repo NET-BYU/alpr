@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet("setup", "run")]
+    [ValidateSet("setup", "run", "clean")]
     [string]$Action
 )
 
@@ -177,6 +177,43 @@ function Run-Server {
     Start-Server
 }
 
+function Clean-Environment {
+    Write-Info "Cleaning plates folder and removing data/log files..."
+
+    $platesFolder = "plates"
+    $filesToRemove = @("alpr_parsed_data.jsonl", "alpr_raw_data.jsonl", "event.log")
+
+    # Remove all files in plates folder
+    if (Test-Path $platesFolder) {
+        try {
+            Get-ChildItem -Path $platesFolder -File | Remove-Item -Force
+            Write-Info "Cleaned all files in '$platesFolder'"
+        }
+        catch {
+            Write-Warning "Failed to clean some files in '$platesFolder': $_"
+        }
+    } else {
+        Write-Warning "'$platesFolder' folder does not exist"
+    }
+
+    # Remove specific files
+    foreach ($file in $filesToRemove) {
+        if (Test-Path $file) {
+            try {
+                Remove-Item $file -Force
+                Write-Info "Removed file: $file"
+            }
+            catch {
+                Write-Warning "Failed to remove file: $file"
+            }
+        } else {
+            Write-Info "File not found (skipped): $file"
+        }
+    }
+
+    Write-Info "Clean operation completed."
+}
+
 # Main script execution
 Write-Info "ALPR Integrated Server Setup Script"
 Write-Info "Action: $Action"
@@ -188,5 +225,8 @@ switch ($Action) {
     }
     "run" {
         Run-Server
+    }
+    "clean" {
+        Clean-Environment
     }
 }
