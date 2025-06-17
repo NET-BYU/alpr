@@ -46,9 +46,9 @@ Then, click `test` to make sure your camera feed is working. You can skip the cr
 
 ![program](media/program_camtest.png)
 
-In this example, I am actually setting it up to view our 3D Printer's HTTP camera. Once you can see the feed, click `Save Camera`, name the camera, and it will show up on your dashboard.
+Once you can see the feed from your camera, click `Save Camera`, name the camera, and it will show up on your dashboard.
 
-That's it! Any license plates it sees will automatically be uploaded to your server on OpenALPR's website. You can view the metrics there.
+It may ask you if you want to start the Rekor services. Always click `Yes` to prevent stuttering and issues. Once you have a camera set up, Rekor Scout will automatically start saving any license plates it sees. If you want to stop it, click the `pause` button at the top. Otherwise, all your saved license plates are viewable on Rekor Scout's cloud dashboard, along with any generated metrics.
 
 ## Running your own local dashboard
 
@@ -98,4 +98,3 @@ To connect Rekor Scout to your local webserver:
 5. Enter `http://localhost:5000/alpr` as the server URL:
 
     ![program](media/program_urldest_popup.png)
-
