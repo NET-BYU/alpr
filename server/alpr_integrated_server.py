@@ -438,6 +438,35 @@ DASHBOARD_TEMPLATE = '''
             border-radius: 15px;
             font-size: 0.9em;
             font-weight: 500;
+            cursor: help;
+            position: relative;
+        }
+        
+        .region:hover::after {
+            content: attr(data-confidence);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2d3748;
+            color: white;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1000;
+            margin-bottom: 5px;
+        }
+        
+        .region:hover::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #2d3748;
+            margin-bottom: -5px;
         }
         
         .confidence {
@@ -788,7 +817,7 @@ DASHBOARD_TEMPLATE = '''
                 
                 row.innerHTML = `
                     <td><span class="plate-number">${plate.license_plate || 'Unknown'}</span></td>
-                    <td><span class="region">${plate.state_region || 'Unknown'}</span></td>
+                    <td><span class="region" data-confidence="Region Confidence: ${(plate.region_confidence || 0).toFixed(1)}%">${plate.state_region || 'Unknown'}</span></td>
                     <td><span class="confidence ${confidenceClass}">${(plate.confidence || 0).toFixed(1)}%</span></td>
                     <td><span class="timestamp">${timestamp}</span></td>
                     <td><span class="vehicle-info">${make}</span></td>

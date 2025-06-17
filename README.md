@@ -46,13 +46,17 @@ Then, click `test` to make sure your camera feed is working. You can skip the cr
 
 ![program](media/program_camtest.png)
 
-In this example, I am actually setting it up to view our 3D Printer's HTTP camera. Once you can see the feed, click `Save Camera`, name the camera, and it will show up on your dashboard.
+Once you can see the feed from your camera, click `Save Camera`, name the camera, and it will show up on your dashboard.
 
-That's it! Any license plates it sees will automatically be uploaded to your server on OpenALPR's website. You can view the metrics there.
+It may ask you if you want to start the Rekor services. Always click `Yes` to prevent stuttering and issues. Once you have a camera set up, Rekor Scout will automatically start saving any license plates it sees. If you want to stop it, click the `pause` button at the top. Otherwise, all your saved license plates are viewable on Rekor Scout's cloud dashboard, along with any generated metrics.
 
 ## Running your own local dashboard
 
-This repository also contains an integrated server which runs a local flask dashboard that mimics the OpenALPR dashboard, but saves data locally. To run it, navigate to the server folder and run `server.ps1` to perform setup and then run the server:
+This repository also contains an integrated server which runs a local flask dashboard that mimics the OpenALPR dashboard, but saves data locally. To run it, navigate to the `server` folder. 
+
+There is a file called `config.template` which contains some basic settings you can edit. It also contains a list of cameras where you can put any of the IP cameras connect to Rekor Scout so you can view them on the dashboard while on the server. Edit the template settings as desired, then rename `config.template` to `config.yaml`.
+
+Once you have set up the config, run `server.ps1` to perform setup and then run the server:
 
 ```sh
 cd path\to\alpr\server
@@ -66,13 +70,13 @@ to start the server, simply run
 python3.10 .\alpr_integrated_server.py
 ```
 
-You now have an openALPR mimic server that stores all its own local data. the server generates three different files:
+You now have an openALPR mimic server that stores all its own local data. the server generates three different files (whose names are set in the config):
 
 - `alpr_raw_data.jsonl`: contains all the JSON reported by the server, including heartbeat messages.
 - `alpr_parsed_data.jsonl`: contains just the useful license plate data. Configurable if you edit the integrated server script.
 - `event.log`: a condensed event log of what the server reports.
 
-It also stores all the images received in the `plates` folder. The server webpage looks like this:
+It also stores all the images received in the (configurable) `plates` folder. The server webpage looks like this:
 
 ![webpage](media/webpage.png)
 
@@ -94,4 +98,3 @@ To connect Rekor Scout to your local webserver:
 5. Enter `http://localhost:5000/alpr` as the server URL:
 
     ![program](media/program_urldest_popup.png)
-
