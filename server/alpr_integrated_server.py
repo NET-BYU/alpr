@@ -268,6 +268,24 @@ def get_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/cameras')
+def cameras_grid():
+    """Display all cameras in a grid view"""
+    import math
+    
+    # Calculate grid size (nearest square)
+    num_cameras = len(CAMERA_IPS)
+    if num_cameras == 0:
+        grid_size = 1
+    else:
+        grid_size = math.ceil(math.sqrt(num_cameras))
+    
+    camera_ips_json = json.dumps(CAMERA_IPS)
+    return render_template_string(CAMERAS_TEMPLATE, 
+                                camera_ips=camera_ips_json, 
+                                grid_size=grid_size,
+                                num_cameras=num_cameras)
+
 # Dashboard HTML Template
 DASHBOARD_TEMPLATE = '''
 <!DOCTYPE html>
@@ -623,6 +641,24 @@ DASHBOARD_TEMPLATE = '''
             color: #718096;
         }
         
+        .nav-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .nav-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
         @media (max-width: 1024px) {
             .header-content {
                 flex-direction: column;
@@ -734,6 +770,9 @@ DASHBOARD_TEMPLATE = '''
                 <label>
                     <input type="checkbox" id="auto-refresh" checked> Auto-refresh
                 </label>
+            </div>
+            <div class="control-group">
+                <a href="/cameras" class="nav-button">📹 View Cameras</a>
             </div>
         </div>
         
@@ -1092,6 +1131,310 @@ DASHBOARD_TEMPLATE = '''
             if (!cameraStatus.classList.contains('online')) {
                 loadCurrentCamera();
             }
+        }, 30000); // Try to reconnect every 30 seconds
+    </script>
+</body>
+</html>
+'''
+
+# New CAMERAS_TEMPLATE
+CAMERAS_TEMPLATE = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALPR Camera Grid</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin: 0;
+        }
+        
+        .nav-button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .nav-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .camera-grid {
+            display: grid;
+            grid-template-columns: repeat({{ grid_size }}, 1fr);
+            gap: 20px;
+            padding: 30px;
+            min-height: 60vh;
+        }
+        
+        .camera-cell {
+            position: relative;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            min-height: 300px;
+        }
+        
+        .camera-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .camera-error {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 1.1em;
+            text-align: center;
+            padding: 20px;
+            min-height: 300px;
+        }
+        
+        .camera-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .camera-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #e53e3e;
+            border: 2px solid white;
+        }
+        
+        .camera-status.online {
+            background: #38a169;
+        }
+        
+        .no-cameras {
+            text-align: center;
+            padding: 60px 30px;
+            color: #718096;
+        }
+        
+        .no-cameras h2 {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+        
+        .grid-info {
+            background: #f7fafc;
+            padding: 15px 30px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: center;
+            color: #4a5568;
+        }
+        
+        @media (max-width: 768px) {
+            .camera-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+                padding: 20px;
+            }
+            
+            .camera-cell {
+                min-height: 200px;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+        
+        @media (max-width: 1024px) and (min-width: 769px) {
+            .camera-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📹 Camera Grid View</h1>
+            <a href="/dashboard" class="nav-button">📊 View Dashboard</a>
+        </div>
+        
+        {% if num_cameras > 0 %}
+        <div class="grid-info">
+            Displaying {{ num_cameras }} camera{{ 's' if num_cameras != 1 else '' }} in a {{ grid_size }}×{{ grid_size }} grid
+        </div>
+        
+        <div class="camera-grid">
+            {% for i in range(num_cameras) %}
+            <div class="camera-cell">
+                <img id="camera-stream-{{ i }}" class="camera-stream" style="display: none;" alt="Camera {{ i + 1 }} Feed">
+                <div id="camera-error-{{ i }}" class="camera-error">
+                    <div>
+                        📹 Loading camera feed...<br>
+                        <small>Connecting to camera {{ i + 1 }}</small>
+                    </div>
+                </div>
+                <div id="camera-info-{{ i }}" class="camera-info">Camera {{ i + 1 }}</div>
+                <div id="camera-status-{{ i }}" class="camera-status"></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-cameras">
+            <h2>📹 No Cameras Configured</h2>
+            <p>Add camera IP addresses to your server configuration to view camera feeds here.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Get camera IPs from server
+        const cameraIPs = {{ camera_ips|safe }};
+        const numCameras = {{ num_cameras }};
+        
+        function loadCamera(index) {
+            if (index >= cameraIPs.length) return;
+            
+            const videoStream = document.getElementById(`camera-stream-${index}`);
+            const videoError = document.getElementById(`camera-error-${index}`);
+            const cameraStatus = document.getElementById(`camera-status-${index}`);
+            const cameraInfo = document.getElementById(`camera-info-${index}`);
+            
+            const currentIP = cameraIPs[index];
+            const streamUrl = `http://${currentIP}:8080`;
+            
+            // Update info
+            cameraInfo.textContent = `Camera ${index + 1} (${currentIP})`;
+            
+            // Show loading state
+            videoError.innerHTML = `<div>📹 Connecting to camera...<br><small>Loading stream from ${currentIP}</small></div>`;
+            videoError.style.display = 'flex';
+            videoStream.style.display = 'none';
+            cameraStatus.classList.remove('online');
+            
+            // Test if camera is accessible
+            const testImg = new Image();
+            testImg.onload = function() {
+                // Camera is accessible, switch to video stream
+                videoStream.src = streamUrl;
+                videoStream.onload = function() {
+                    videoStream.style.display = 'block';
+                    videoError.style.display = 'none';
+                    cameraStatus.classList.add('online');
+                };
+                videoStream.onerror = function() {
+                    showCameraError(index, `Failed to load stream from ${currentIP}`);
+                };
+            };
+            testImg.onerror = function() {
+                showCameraError(index, `Camera at ${currentIP}:8080 is not accessible`);
+            };
+            testImg.src = streamUrl;
+            
+            // Set a timeout for connection attempt
+            setTimeout(() => {
+                const status = document.getElementById(`camera-status-${index}`);
+                if (!status.classList.contains('online')) {
+                    showCameraError(index, `Connection timeout to ${currentIP}`);
+                }
+            }, 10000);
+        }
+        
+        function showCameraError(index, message) {
+            const videoError = document.getElementById(`camera-error-${index}`);
+            const cameraStatus = document.getElementById(`camera-status-${index}`);
+            const videoStream = document.getElementById(`camera-stream-${index}`);
+            
+            videoError.innerHTML = `<div>📹 Camera Offline<br><small>${message}</small></div>`;
+            videoError.style.display = 'flex';
+            videoStream.style.display = 'none';
+            cameraStatus.classList.remove('online');
+        }
+        
+        function loadAllCameras() {
+            for (let i = 0; i < numCameras; i++) {
+                loadCamera(i);
+            }
+        }
+        
+        function checkAllCameras() {
+            for (let i = 0; i < numCameras; i++) {
+                const cameraStatus = document.getElementById(`camera-status-${i}`);
+                if (cameraStatus && !cameraStatus.classList.contains('online')) {
+                    loadCamera(i);
+                }
+            }
+        }
+        
+        // Initialize all cameras
+        loadAllCameras();
+        
+        // Refresh camera connections periodically
+        setInterval(() => {
+            checkAllCameras();
         }, 30000); // Try to reconnect every 30 seconds
     </script>
 </body>
