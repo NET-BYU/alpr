@@ -3,14 +3,20 @@ import json
 from datetime import datetime
 import os
 import base64
+import yaml
 
 app = Flask(__name__)
 
 # Output files
-raw_output_file = 'alpr_raw_data.jsonl'
-parsed_output_file = 'alpr_parsed_data.jsonl'
-event_log_file = 'event.log'
-plates_dir = 'plates'
+# Load configuration from config.yaml
+with open('config.yaml', 'r') as config_file:
+    config = yaml.safe_load(config_file)['integrated_server']
+
+raw_output_file = config.get('raw_output_file', 'alpr_raw_data.jsonl')
+parsed_output_file = config.get('parsed_output_file', 'alpr_parsed_data.jsonl')
+event_log_file = config.get('event_log_file', 'event.log')
+plates_dir = config.get('plates_dir', 'plates')
+CAMERA_IPS = config.get('camera_ips', [])
 
 # Create plates directory if it doesn't exist
 if not os.path.exists(plates_dir):
@@ -175,7 +181,9 @@ def receive_alpr_data():
 @app.route('/dashboard')
 def dashboard():
     """Display ALPR dashboard"""
-    return render_template_string(DASHBOARD_TEMPLATE)
+    # Pass camera IPs to the template
+    camera_ips_json = json.dumps(CAMERA_IPS)
+    return render_template_string(DASHBOARD_TEMPLATE, camera_ips=camera_ips_json)
 
 @app.route('/api/plates')
 def get_plates():
@@ -296,6 +304,18 @@ DASHBOARD_TEMPLATE = '''
             color: white;
             padding: 30px;
             text-align: center;
+            position: relative;
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 30px;
+        }
+        
+        .header-text {
+            flex: 1;
         }
         
         .header h1 {
@@ -306,6 +326,98 @@ DASHBOARD_TEMPLATE = '''
         .header p {
             font-size: 1.1em;
             opacity: 0.9;
+        }
+        
+        .video-container {
+            position: relative;
+            flex: 1;
+            max-width: 480px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .video-stream {
+            width: 100%;
+            height: 270px;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .video-error {
+            width: 100%;
+            height: 270px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 1.1em;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .video-controls {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0 10px;
+            pointer-events: none;
+        }
+        
+        .video-nav {
+            background: rgba(0, 0, 0, 0.7);
+            border: none;
+            color: white;
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s;
+            pointer-events: auto;
+        }
+        
+        .video-nav:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+        
+        .video-nav:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        
+        .video-info {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.9em;
+        }
+        
+        .camera-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #e53e3e;
+        }
+        
+        .camera-status.online {
+            background: #38a169;
         }
         
         .controls {
@@ -511,6 +623,17 @@ DASHBOARD_TEMPLATE = '''
             color: #718096;
         }
         
+        @media (max-width: 1024px) {
+            .header-content {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .video-container {
+                max-width: 100%;
+            }
+        }
+        
         @media (max-width: 768px) {
             .controls {
                 flex-direction: column;
@@ -528,14 +651,44 @@ DASHBOARD_TEMPLATE = '''
             .plate-image:hover {
                 transform: scale(1.5);
             }
+            
+            .video-stream {
+                height: 200px;
+            }
+            
+            .video-error {
+                height: 200px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚗 ALPR Dashboard</h1>
-            <p>Real-time License Plate Recognition System</p>
+            <div class="header-content">
+                <div class="header-text">
+                    <h1>🚗 ALPR Dashboard</h1>
+                    <p>Real-time License Plate Recognition System</p>
+                </div>
+                
+                <div class="video-container">
+                    <img id="video-stream" class="video-stream" style="display: none;" alt="Camera Feed">
+                    <div id="video-error" class="video-error">
+                        <div>
+                            📹 Loading camera feed...<br>
+                            <small>Connecting to camera</small>
+                        </div>
+                    </div>
+                    
+                    <div class="video-controls">
+                        <button id="prev-camera" class="video-nav" onclick="switchCamera(-1)">‹</button>
+                        <button id="next-camera" class="video-nav" onclick="switchCamera(1)">›</button>
+                    </div>
+                    
+                    <div id="video-info" class="video-info">Camera 1 of 1</div>
+                    <div id="camera-status" class="camera-status"></div>
+                </div>
+            </div>
         </div>
         
         <div class="stats">
@@ -612,6 +765,98 @@ DASHBOARD_TEMPLATE = '''
         let sortColumn = 'timestamp';
         let sortDirection = 'desc';
         let lastEventCount = 0;
+        
+        // Camera management - Get IPs from server
+        const cameraIPs = {{ camera_ips|safe }}; // This will be populated by the server
+        let currentCameraIndex = 0;
+        
+        // Camera functions
+        function switchCamera(direction) {
+            currentCameraIndex += direction;
+            
+            if (currentCameraIndex < 0) {
+                currentCameraIndex = cameraIPs.length - 1;
+            } else if (currentCameraIndex >= cameraIPs.length) {
+                currentCameraIndex = 0;
+            }
+            
+            loadCurrentCamera();
+            updateCameraControls();
+        }
+        
+        function loadCurrentCamera() {
+            const videoStream = document.getElementById('video-stream');
+            const videoError = document.getElementById('video-error');
+            const cameraStatus = document.getElementById('camera-status');
+            const videoInfo = document.getElementById('video-info');
+            
+            if (cameraIPs.length === 0) {
+                videoError.innerHTML = '<div>📹 No cameras configured<br><small>Add camera IPs to the server configuration</small></div>';
+                cameraStatus.classList.remove('online');
+                return;
+            }
+            
+            const currentIP = cameraIPs[currentCameraIndex];
+            const streamUrl = `http://${currentIP}:8080`;
+            
+            // Update info
+            videoInfo.textContent = `Camera ${currentCameraIndex + 1} of ${cameraIPs.length} (${currentIP})`;
+            
+            // Show loading state
+            videoError.innerHTML = '<div>📹 Connecting to camera...<br><small>Loading stream</small></div>';
+            videoError.style.display = 'flex';
+            videoStream.style.display = 'none';
+            cameraStatus.classList.remove('online');
+            
+            // Test if camera is accessible
+            const testImg = new Image();
+            testImg.onload = function() {
+                // Camera is accessible, switch to video stream
+                videoStream.src = streamUrl;
+                videoStream.onload = function() {
+                    videoStream.style.display = 'block';
+                    videoError.style.display = 'none';
+                    cameraStatus.classList.add('online');
+                };
+                videoStream.onerror = function() {
+                    showCameraError(`Failed to load stream from ${currentIP}`);
+                };
+            };
+            testImg.onerror = function() {
+                showCameraError(`Camera at ${currentIP}:8080 is not accessible`);
+            };
+            testImg.src = streamUrl;
+            
+            // Set a timeout for connection attempt
+            setTimeout(() => {
+                if (!cameraStatus.classList.contains('online')) {
+                    showCameraError(`Connection timeout to ${currentIP}`);
+                }
+            }, 10000);
+        }
+        
+        function showCameraError(message) {
+            const videoError = document.getElementById('video-error');
+            const cameraStatus = document.getElementById('camera-status');
+            
+            videoError.innerHTML = `<div>📹 Camera Offline<br><small>${message}</small></div>`;
+            videoError.style.display = 'flex';
+            document.getElementById('video-stream').style.display = 'none';
+            cameraStatus.classList.remove('online');
+        }
+        
+        function updateCameraControls() {
+            const prevBtn = document.getElementById('prev-camera');
+            const nextBtn = document.getElementById('next-camera');
+            
+            if (cameraIPs.length <= 1) {
+                prevBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+            } else {
+                prevBtn.style.display = 'flex';
+                nextBtn.style.display = 'flex';
+            }
+        }
         
         // Fetch and display plates data
         async function fetchPlates() {
@@ -833,11 +1078,21 @@ DASHBOARD_TEMPLATE = '''
         // Initialize
         fetchPlates();
         startAutoRefresh();
+        loadCurrentCamera();
+        updateCameraControls();
         
         // Initial sort by timestamp (newest first)
         setTimeout(() => {
             sortData('timestamp');
         }, 500);
+        
+        // Refresh camera connection periodically
+        setInterval(() => {
+            const cameraStatus = document.getElementById('camera-status');
+            if (!cameraStatus.classList.contains('online')) {
+                loadCurrentCamera();
+            }
+        }, 30000); // Try to reconnect every 30 seconds
     </script>
 </body>
 </html>

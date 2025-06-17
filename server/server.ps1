@@ -97,7 +97,7 @@ function Install-Requirements {
     
     try {
         python -m pip install --upgrade pip
-        python -m pip install flask
+        python -m pip install -r req.txt
         
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to install packages"
@@ -153,7 +153,7 @@ function Setup-Environment {
     
     Write-Info ""
     Write-Info "Setup completed successfully!"
-    Write-Info "To run the server, use: .\setup.ps1 run"
+    Write-Info "To run the server, use: .\server.ps1 run"
     Write-Info ""
 }
 
@@ -166,7 +166,7 @@ function Run-Server {
     # Check if venv exists
     if (-not (Test-VenvExists)) {
         Write-Error "Virtual environment not found. Please run setup first:"
-        Write-Info ".\setup.ps1 setup"
+        Write-Info ".\server.ps1 setup"
         exit 1
     }
     
