@@ -1,0 +1,16 @@
+name: Block merges from forbidden branches
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  block:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if source branch is forbidden
+        run: |
+          if [[ "${{ github.head_ref }}" == "lite" ]]; then
+            echo "Merging from 'lite' is not allowed."
+            exit 1
+          fi
