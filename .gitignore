@@ -3,3 +3,4 @@
 *.jsonl
 *.log
 plates/*
+camera/img/*
