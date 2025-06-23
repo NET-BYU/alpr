@@ -1236,7 +1236,6 @@ CAMERAS_TEMPLATE = '''
             grid-template-columns: repeat({{ grid_size }}, 1fr);
             gap: 20px;
             padding: 30px;
-            min-height: 60vh;
         }
         
         .camera-cell {
@@ -1245,13 +1244,16 @@ CAMERAS_TEMPLATE = '''
             border-radius: 10px;
             overflow: hidden;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            min-height: 300px;
+            /* Maintain 16:9 aspect ratio */
+            aspect-ratio: 16 / 9;
+            width: 100%;
         }
         
         .camera-stream {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain; /* Changed from cover to contain to maintain aspect ratio */
+            background: #000; /* Black background for letterboxing if needed */
             display: block;
         }
         
@@ -1266,7 +1268,6 @@ CAMERAS_TEMPLATE = '''
             font-size: 1.1em;
             text-align: center;
             padding: 20px;
-            min-height: 300px;
         }
         
         .camera-info {
@@ -1322,10 +1323,6 @@ CAMERAS_TEMPLATE = '''
                 padding: 20px;
             }
             
-            .camera-cell {
-                min-height: 200px;
-            }
-            
             .header {
                 flex-direction: column;
                 gap: 20px;
@@ -1340,6 +1337,13 @@ CAMERAS_TEMPLATE = '''
         @media (max-width: 1024px) and (min-width: 769px) {
             .camera-grid {
                 grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        /* For very small screens, allow some flexibility in aspect ratio */
+        @media (max-width: 480px) {
+            .camera-cell {
+                aspect-ratio: 4 / 3; /* Slightly taller for mobile */
             }
         }
     </style>
