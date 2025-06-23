@@ -5,3 +5,4 @@ server/plates/*
 server/*.jsonl
 server/*.log
 server/config.yaml
+camera/img/*
