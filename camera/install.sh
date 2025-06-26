@@ -100,3 +100,6 @@ case "$1" in
         full_install "$python_file"
         ;;
 esac
+
+echo "Installation complete! If you changed the service file, please reboot with:"
+echo "sudo reboot now"
