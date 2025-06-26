@@ -17,7 +17,7 @@ After=network.target
 ExecStart=/usr/bin/python3 ${CURRENT_DIR}/ipcam.py
 WorkingDirectory=${CURRENT_DIR}
 Restart=always
-User=\${USER}
+User=${USER}
 
 [Install]
 WantedBy=multi-user.target
