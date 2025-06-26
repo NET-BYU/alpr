@@ -9,7 +9,7 @@ This tutorial uses a Raspberry Pi 5 and a PiCam V3. You can probably use the inc
 To get the camera running, clone this repo's `lite` branch onto a Raspberry Pi:
 
 ```sh
-git clone --branch lite git@github.com:NET-BYU/alpr.git
+git clone --branch lite --depth=1 https://github.com/NET-BYU/alpr.git
 ```
 
 then, just navigate to the `camera` directory and run the included `install.sh` script.
