@@ -6,7 +6,7 @@ This branch is just the camera module from the repository. This saves time and e
 
 This tutorial uses a Raspberry Pi 5 and a PiCam V3. You can probably use the included script to run almost any camera with a little tweaking, at least on the Raspberry Pi.
 
-To get the camera running, clone this repo's `lite` branch onto a Raspberry Pi:
+To get the camera running, clone this repo's `lite` branch onto a Raspberry Pi (you may need to run `sudo apt install git` first):
 
 ```sh
 git clone --branch lite --depth=1 https://github.com/NET-BYU/alpr.git
