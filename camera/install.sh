@@ -3,18 +3,44 @@
 # Get the current directory where this script is located
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Update system packages
-sudo apt update
-sudo apt install libcamera-apps ffmpeg python3
+# Function to map keywords to filenames
+get_filename() {
+    case "$1" in
+        "webcam")
+            echo "webcam.py"
+            ;;
+        "ipcam")
+            echo "ipcam.py"
+            ;;
+        "imagecam")
+            echo "imagecam.py"
+            ;;
+        *)
+            echo "$1"
+            ;;
+    esac
+}
 
-# Create the service file with the correct path
-cat << EOF | sudo tee /etc/systemd/system/camera.service
+# Function to create/update service file
+create_service() {
+    local python_file="$1"
+    
+    # Check if file exists
+    if [ ! -f "${CURRENT_DIR}/${python_file}" ]; then
+        echo "Error: ${python_file} not found in ${CURRENT_DIR}"
+        exit 1
+    fi
+    
+    echo "Creating service for ${python_file}..."
+    
+    # Create the service file with the correct path
+    cat << EOF | sudo tee /etc/systemd/system/camera.service
 [Unit]
 Description=start HTTP camera
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 ${CURRENT_DIR}/ipcam.py
+ExecStart=/usr/bin/python3 ${CURRENT_DIR}/${python_file}
 WorkingDirectory=${CURRENT_DIR}
 Restart=always
 User=${USER}
@@ -23,13 +49,54 @@ User=${USER}
 WantedBy=multi-user.target
 EOF
 
-# Reload systemd, enable and start the service
-sudo systemctl daemon-reload
-sudo systemctl enable camera.service
-sudo systemctl start camera.service
+    # Reload systemd and restart service
+    sudo systemctl daemon-reload
+    sudo systemctl enable camera.service
+    sudo systemctl restart camera.service
+    
+    echo "Service updated to use ${python_file}"
+}
 
-# Show status
-echo "Camera service installed and started!"
-echo "Current directory: ${CURRENT_DIR}"
-echo "Service status:"
-sudo systemctl status camera.service --no-pager
+# Function to do full installation
+full_install() {
+    local python_file="$1"
+    
+    echo "Running full installation..."
+    
+    # Update system packages
+    sudo apt update
+    sudo apt install libcamera-apps ffmpeg python3 -y
+    
+    # Create/update service
+    create_service "$python_file"
+    
+    # Show status
+    echo "Camera service installed and started!"
+    echo "Current directory: ${CURRENT_DIR}"
+    echo "Service status:"
+    sudo systemctl status camera.service --no-pager
+}
+
+# Main script logic
+case "$1" in
+    "change")
+        if [ -z "$2" ]; then
+            echo "Usage: $0 change <filename>"
+            echo "Example: $0 change webcam.py"
+            exit 1
+        fi
+        python_file=$(get_filename "$2")
+        create_service "$python_file"
+        echo "Service status:"
+        sudo systemctl status camera.service --no-pager
+        ;;
+    "")
+        # No arguments - default to ipcam.py
+        full_install "ipcam.py"
+        ;;
+    *)
+        # Single keyword argument
+        python_file=$(get_filename "$1")
+        full_install "$python_file"
+        ;;
+esac
