@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIN Lookup - ALPR System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vin.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div class="header-text">
+                    <h1>🔍 VIN Lookup</h1>
+                    <p>License Plate to VIN Conversion</p>
+                </div>
+                <div class="nav-buttons">
+                    <a href="/dashboard" class="nav-button">📊 Dashboard</a>
+                    <a href="/cameras" class="nav-button">📹 Cameras</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_plates }}</div>
+                <div class="stat-label">Total Unique Plates</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ plates_with_vin }}</div>
+                <div class="stat-label">Plates with VIN Data</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="selected-count">0</div>
+                <div class="stat-label">Selected for Lookup</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <button id="select-all" class="control-button">Select All</button>
+                <button id="select-none" class="control-button">Select None</button>
+                <button id="select-missing" class="control-button">Select Missing VIN</button>
+                <button id="select-with-vin" class="control-button">Select With VIN</button>
+            </div>
+            
+            <div class="control-group">
+                <button id="lookup-button" class="lookup-button" disabled>🔍 Lookup Selected VINs (<span id="selected-count">0</span>)</button>
+                <button id="clear-button" class="clear-button" disabled>🗑️ Clear Selected VIN Data (<span id="clear-count">0</span>)</button>
+                <button id="clear-all-button" class="clear-all-button">🗑️ Clear All VIN Data</button>
+            </div>
+            <div class="control-group">
+                <input type="text" id="search" placeholder="Search plates or states...">
+            </div>
+        </div>
+        
+        <div class="progress-container" id="progress-container" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <div class="progress-text" id="progress-text">Processing...</div>
+        </div>
+        
+        <div class="table-container">
+            {% if total_plates > 0 %}
+            <table id="plates-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="select-all-checkbox"></th>
+                        <th>License Plate</th>
+                        <th>State</th>
+                        <th>Confidence</th>
+                        <th>Camera ID</th>
+                        <th>Timestamp</th>
+                        <th>Photo</th>
+                        <th>VIN Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for plate in plates %}
+                    <tr class="plate-row" data-plate="{{ plate.license_plate }}" data-state="{{ plate.state }}">
+                        <td>
+                            <input type="checkbox" class="plate-checkbox" 
+                                   data-plate="{{ plate.license_plate }}" 
+                                   data-state="{{ plate.state }}"
+                                   data-confidence="{{ plate.confidence }}"
+                                   data-camera-id="{{ plate.camera_id }}"
+                                   data-timestamp="{{ plate.timestamp }}"
+                                   data-original-region="{{ plate.original_region }}"
+                                   data-image="{{ plate.image_filename or '' }}"
+                                   {% if plate.has_vin_data %}disabled{% endif %}>
+                        </td>
+                        <td><span class="plate-number">{{ plate.license_plate }}</span></td>
+                        <td>
+                            <select class="state-override" data-plate="{{ plate.license_plate }}">
+                                <option value="AL" {% if plate.state == 'AL' %}selected{% endif %}>AL</option>
+                                <option value="AK" {% if plate.state == 'AK' %}selected{% endif %}>AK</option>
+                                <option value="AZ" {% if plate.state == 'AZ' %}selected{% endif %}>AZ</option>
+                                <option value="AR" {% if plate.state == 'AR' %}selected{% endif %}>AR</option>
+                                <option value="CA" {% if plate.state == 'CA' %}selected{% endif %}>CA</option>
+                                <option value="CO" {% if plate.state == 'CO' %}selected{% endif %}>CO</option>
+                                <option value="CT" {% if plate.state == 'CT' %}selected{% endif %}>CT</option>
+                                <option value="DE" {% if plate.state == 'DE' %}selected{% endif %}>DE</option>
+                                <option value="FL" {% if plate.state == 'FL' %}selected{% endif %}>FL</option>
+                                <option value="GA" {% if plate.state == 'GA' %}selected{% endif %}>GA</option>
+                                <option value="HI" {% if plate.state == 'HI' %}selected{% endif %}>HI</option>
+                                <option value="ID" {% if plate.state == 'ID' %}selected{% endif %}>ID</option>
+                                <option value="IL" {% if plate.state == 'IL' %}selected{% endif %}>IL</option>
+                                <option value="IN" {% if plate.state == 'IN' %}selected{% endif %}>IN</option>
+                                <option value="IA" {% if plate.state == 'IA' %}selected{% endif %}>IA</option>
+                                <option value="KS" {% if plate.state == 'KS' %}selected{% endif %}>KS</option>
+                                <option value="KY" {% if plate.state == 'KY' %}selected{% endif %}>KY</option>
+                                <option value="LA" {% if plate.state == 'LA' %}selected{% endif %}>LA</option>
+                                <option value="ME" {% if plate.state == 'ME' %}selected{% endif %}>ME</option>
+                                <option value="MD" {% if plate.state == 'MD' %}selected{% endif %}>MD</option>
+                                <option value="MA" {% if plate.state == 'MA' %}selected{% endif %}>MA</option>
+                                <option value="MI" {% if plate.state == 'MI' %}selected{% endif %}>MI</option>
+                                <option value="MN" {% if plate.state == 'MN' %}selected{% endif %}>MN</option>
+                                <option value="MS" {% if plate.state == 'MS' %}selected{% endif %}>MS</option>
+                                <option value="MO" {% if plate.state == 'MO' %}selected{% endif %}>MO</option>
+                                <option value="MT" {% if plate.state == 'MT' %}selected{% endif %}>MT</option>
+                                <option value="NE" {% if plate.state == 'NE' %}selected{% endif %}>NE</option>
+                                <option value="NV" {% if plate.state == 'NV' %}selected{% endif %}>NV</option>
+                                <option value="NH" {% if plate.state == 'NH' %}selected{% endif %}>NH</option>
+                                <option value="NJ" {% if plate.state == 'NJ' %}selected{% endif %}>NJ</option>
+                                <option value="NM" {% if plate.state == 'NM' %}selected{% endif %}>NM</option>
+                                <option value="NY" {% if plate.state == 'NY' %}selected{% endif %}>NY</option>
+                                <option value="NC" {% if plate.state == 'NC' %}selected{% endif %}>NC</option>
+                                <option value="ND" {% if plate.state == 'ND' %}selected{% endif %}>ND</option>
+                                <option value="OH" {% if plate.state == 'OH' %}selected{% endif %}>OH</option>
+                                <option value="OK" {% if plate.state == 'OK' %}selected{% endif %}>OK</option>
+                                <option value="OR" {% if plate.state == 'OR' %}selected{% endif %}>OR</option>
+                                <option value="PA" {% if plate.state == 'PA' %}selected{% endif %}>PA</option>
+                                <option value="RI" {% if plate.state == 'RI' %}selected{% endif %}>RI</option>
+                                <option value="SC" {% if plate.state == 'SC' %}selected{% endif %}>SC</option>
+                                <option value="SD" {% if plate.state == 'SD' %}selected{% endif %}>SD</option>
+                                <option value="TN" {% if plate.state == 'TN' %}selected{% endif %}>TN</option>
+                                <option value="TX" {% if plate.state == 'TX' %}selected{% endif %}>TX</option>
+                                <option value="UT" {% if plate.state == 'UT' %}selected{% endif %}>UT</option>
+                                <option value="VT" {% if plate.state == 'VT' %}selected{% endif %}>VT</option>
+                                <option value="VA" {% if plate.state == 'VA' %}selected{% endif %}>VA</option>
+                                <option value="WA" {% if plate.state == 'WA' %}selected{% endif %}>WA</option>
+                                <option value="WV" {% if plate.state == 'WV' %}selected{% endif %}>WV</option>
+                                <option value="WI" {% if plate.state == 'WI' %}selected{% endif %}>WI</option>
+                                <option value="WY" {% if plate.state == 'WY' %}selected{% endif %}>WY</option>
+                                <option value="DC" {% if plate.state == 'DC' %}selected{% endif %}>DC</option>
+                            </select>
+                        </td>
+                        <td><span class="confidence">{{ "%.1f"|format(plate.confidence) }}%</span></td>
+                        <td><span class="camera-id">{{ plate.camera_id }}</span></td>
+                        <td><span class="timestamp">{{ plate.timestamp[:19] if plate.timestamp else 'Unknown' }}</span></td>
+                        <td>
+                            {% if plate.image_filename %}
+                                <img src="/plates/{{ plate.image_filename }}" alt="Plate" class="plate-thumbnail" 
+                                     onclick="showImageModal('{{ plate.image_filename }}', '{{ plate.license_plate }}')">
+                            {% else %}
+                                <span class="no-image">No image</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if plate.has_vin_data %}
+                                <span class="status-badge status-complete">✓ Complete</span>
+                            {% else %}
+                                <span class="status-badge status-pending">⏳ Pending</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if plate.has_vin_data %}
+                                <button class="view-vin-button" data-plate="{{ plate.license_plate }}" data-state="{{ plate.state }}">View VIN Data</button>
+                            {% else %}
+                                <span class="no-data">No data</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="no-plates">
+                <h2>🚫 No License Plates Found</h2>
+                <p>No license plate data available for VIN lookup. Make sure your ALPR system is processing plates.</p>
+                <a href="/dashboard" class="nav-button">Go to Dashboard</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- VIN Data Modal -->
+    <div id="vin-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>VIN Lookup Results</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body" id="vin-modal-body">
+                <!-- VIN data will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="image-modal" class="modal" style="display: none;">
+        <div class="modal-content image-modal-content">
+            <div class="modal-header">
+                <h2 id="image-modal-title">License Plate Image</h2>
+                <span class="close" onclick="closeImageModal()">&times;</span>
+            </div>
+            <div class="modal-body image-modal-body">
+                <img id="modal-image" src="" alt="License Plate" class="modal-plate-image">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Pass data from server to JavaScript
+        const platesData = {{ plates|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/vin.js') }}"></script>
+</body>
+</html>

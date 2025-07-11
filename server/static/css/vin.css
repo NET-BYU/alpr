@@ -1,0 +1,704 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 15px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.header {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    color: white;
+    padding: 30px;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-text h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+}
+
+.header-text p {
+    font-size: 1.1em;
+    opacity: 0.9;
+}
+
+.nav-buttons {
+    display: flex;
+    gap: 15px;
+}
+
+.nav-button {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.nav-button:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    padding: 20px 30px;
+    background: #f7fafc;
+}
+
+.stat-card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+}
+
+.stat-number {
+    font-size: 2em;
+    font-weight: bold;
+    color: #667eea;
+}
+
+.stat-label {
+    color: #718096;
+    margin-top: 5px;
+}
+
+.controls {
+    padding: 20px 30px;
+    background: #f7fafc;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.control-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.control-button {
+    background: #e2e8f0;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 500;
+}
+
+.control-button:hover {
+    background: #cbd5e0;
+    transform: translateY(-1px);
+}
+
+.lookup-button {
+    background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 1.1em;
+}
+
+.lookup-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+}
+
+.lookup-button:disabled {
+    background: #a0aec0;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+#search {
+    padding: 8px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+    width: 250px;
+}
+
+#search:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.progress-container {
+    padding: 20px 30px;
+    background: #f7fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    text-align: center;
+    color: #4a5568;
+    font-weight: 500;
+}
+
+.table-container {
+    padding: 30px;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+}
+
+th {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    color: white;
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+}
+
+td {
+    padding: 15px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+tr:hover {
+    background-color: #f7fafc;
+}
+
+.plate-number {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #2d3748;
+    background: #edf2f7;
+    padding: 5px 10px;
+    border-radius: 5px;
+    display: inline-block;
+}
+
+.state-code {
+    font-weight: 600;
+    color: #4a5568;
+    background: #f7fafc;
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.confidence {
+    font-weight: bold;
+    color: #38a169;
+}
+
+.camera-id {
+    font-family: monospace;
+    color: #4a5568;
+    background: #f7fafc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.timestamp {
+    font-family: monospace;
+    color: #718096;
+    font-size: 0.9em;
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.status-complete {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.status-pending {
+    background: #fef5e7;
+    color: #975a16;
+}
+
+.view-vin-button {
+    background: #3182ce;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.3s;
+}
+
+.view-vin-button:hover {
+    background: #2c5282;
+    transform: translateY(-1px);
+}
+
+.no-data {
+    color: #a0aec0;
+    font-style: italic;
+}
+
+.no-plates {
+    text-align: center;
+    padding: 60px 30px;
+    color: #718096;
+}
+
+.no-plates h2 {
+    font-size: 2em;
+    margin-bottom: 20px;
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 10px;
+    max-width: 800px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 10px 10px 0 0;
+}
+
+.modal-header h2 {
+    margin: 0;
+}
+
+.close {
+    font-size: 24px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.3s;
+}
+
+.close:hover {
+    opacity: 1;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.vin-data {
+    background: #f7fafc;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.vin-data h3 {
+    color: #2d3748;
+    margin-bottom: 10px;
+}
+
+.vin-data pre {
+    background: white;
+    padding: 10px;
+    border-radius: 5px;
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+}
+
+.state-override {
+    padding: 4px 8px;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: #4a5568;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 80px;
+}
+
+.state-override:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.state-override:hover {
+    border-color: #cbd5e0;
+}
+
+.plate-thumbnail {
+    width: 60px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 2px solid #e2e8f0;
+    transition: all 0.3s;
+}
+
+.plate-thumbnail:hover {
+    border-color: #667eea;
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.no-image {
+    color: #a0aec0;
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+/* Image Modal Styles */
+.image-modal-content {
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+.image-modal-body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    background: #f7fafc;
+}
+
+.modal-plate-image {
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    background: white;
+    padding: 10px;
+}
+
+.clear-button {
+    background: linear-gradient(135deg, #e53e3e, #c53030);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(229, 62, 62, 0.3);
+    min-width: 200px;
+}
+
+.clear-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #c53030, #9c2626);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(229, 62, 62, 0.4);
+}
+
+.clear-button:disabled {
+    background: #a0aec0;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.clear-all-button {
+    background: linear-gradient(135deg, #742a2a, #63171b);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(116, 42, 42, 0.3);
+    min-width: 180px;
+}
+
+.clear-all-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #63171b, #521b1f);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(116, 42, 42, 0.4);
+}
+
+.clear-all-button:disabled {
+    background: #a0aec0;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Enhanced VIN Modal Styles */
+.vin-modal-header {
+    text-align: center;
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.vin-modal-header h3 {
+    color: #2d3748;
+    font-size: 1.6em;
+    margin-bottom: 10px;
+}
+
+.plate-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    display: inline-block;
+    font-size: 0.95em;
+}
+
+.vin-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.vin-section {
+    background: #f7fafc;
+    border-radius: 12px;
+    padding: 20px;
+    border-left: 4px solid #667eea;
+}
+
+.vin-section.vehicle-info {
+    border-left-color: #38a169;
+}
+
+.vin-section.technical-info {
+    border-left-color: #3182ce;
+}
+
+.vin-section.detection-info {
+    border-left-color: #d69e2e;
+}
+
+.vin-section.error-info {
+    border-left-color: #e53e3e;
+    background: #fed7d7;
+}
+
+.vin-section h4 {
+    color: #2d3748;
+    font-size: 1.2em;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.vin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.vin-field {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s;
+}
+
+.vin-field:hover {
+    border-color: #cbd5e0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.vin-field.primary {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+}
+
+.vin-field.primary label {
+    color: white;
+}
+
+.vin-field label {
+    display: block;
+    font-weight: 600;
+    color: #4a5568;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+}
+
+.vin-field span {
+    display: block;
+    color: #2d3748;
+    font-size: 0.95em;
+    word-break: break-word;
+}
+
+.vin-field.primary span {
+    color: white;
+    font-size: 1.1em;
+}
+
+.vin-number {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.error-message {
+    color: #e53e3e;
+    font-style: italic;
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(229, 62, 62, 0.1);
+    border-radius: 5px;
+}
+
+.no-data {
+    text-align: center;
+    color: #718096;
+    font-style: italic;
+    padding: 40px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: 20px;
+        text-align: center;
+    }
+    
+    .nav-buttons {
+        justify-content: center;
+    }
+    
+    .controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .control-group {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    #search {
+        width: 100%;
+        max-width: 300px;
+    }
+    
+    table {
+        font-size: 0.9em;
+    }
+    
+    .state-override {
+        min-width: 60px;
+        font-size: 0.8em;
+    }
+    
+    .plate-thumbnail {
+        width: 40px;
+        height: 25px;
+    }
+    
+    .modal-content {
+        margin: 20px;
+        max-width: calc(100% - 40px);
+    }
+    
+    .image-modal-content {
+        max-width: calc(100% - 20px);
+        max-height: calc(100% - 20px);
+    }
+    
+    .vin-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .vin-modal-header h3 {
+        font-size: 1.4em;
+    }
+    
+    .vin-section {
+        padding: 15px;
+    }
+}

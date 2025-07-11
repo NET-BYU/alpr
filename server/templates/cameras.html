@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALPR Camera Grid</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cameras.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📹 Camera Grid View</h1>
+            <div class="nav-buttons">
+                <a href="/dashboard" class="nav-button">📊 View Dashboard</a>
+                <a href="/vin" class="nav-button">🔍 VIN Lookup</a>
+            </div>
+        </div>
+        
+        {% if num_cameras > 0 %}
+        <div class="grid-info">
+            Displaying {{ num_cameras }} camera{{ 's' if num_cameras != 1 else '' }} in a {{ grid_size }}×{{ grid_size }} grid
+            {% if num_http > 0 and num_rtsp > 0 %}
+                ({{ num_http }} HTTP + {{ num_rtsp }} RTSP)
+            {% elif num_http > 0 %}
+                ({{ num_http }} HTTP)
+            {% elif num_rtsp > 0 %}
+                ({{ num_rtsp }} RTSP)
+            {% endif %}
+        </div>
+        
+        <div class="camera-grid" style="grid-template-columns: repeat({{ grid_size }}, 1fr);">
+            {% set camera_index = [0] %}
+            {% for ip in camera_data.http_cameras %}
+            <div class="camera-cell">
+                <img id="camera-stream-{{ camera_index[0] }}" class="camera-stream" style="display: none;" alt="HTTP Camera {{ loop.index }} Feed">
+                <div id="camera-error-{{ camera_index[0] }}" class="camera-error">
+                    <div>
+                        📹 Loading HTTP camera feed...<br>
+                        <small>Connecting to {{ ip }}</small>
+                    </div>
+                </div>
+                <div id="camera-info-{{ camera_index[0] }}" class="camera-info">HTTP {{ loop.index }} ({{ ip }})</div>
+                <div id="camera-status-{{ camera_index[0] }}" class="camera-status"></div>
+                <div id="camera-type-{{ camera_index[0] }}" class="camera-type" data-type="http" data-ip="{{ ip }}" data-port="8080"></div>
+            </div>
+            {% if camera_index.append(camera_index.pop() + 1) %}{% endif %}
+            {% endfor %}
+            
+            {% for ip in camera_data.rtsp_cameras %}
+            <div class="camera-cell">
+                <img id="camera-stream-{{ camera_index[0] }}" class="camera-stream" style="display: none;" alt="RTSP Camera {{ loop.index }} Feed">
+                <div id="camera-error-{{ camera_index[0] }}" class="camera-error">
+                    <div>
+                        📹 RTSP Camera<br>
+                        <small>{{ ip }}:554<br>Attempting HTTP preview...</small>
+                    </div>
+                </div>
+                <div id="camera-info-{{ camera_index[0] }}" class="camera-info">RTSP {{ loop.index }} ({{ ip }})</div>
+                <div id="camera-status-{{ camera_index[0] }}" class="camera-status"></div>
+                <div id="camera-type-{{ camera_index[0] }}" class="camera-type" data-type="rtsp" data-ip="{{ ip }}" data-port="554"></div>
+            </div>
+            {% if camera_index.append(camera_index.pop() + 1) %}{% endif %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-cameras">
+            <h2>📹 No Cameras Configured</h2>
+            <p>Add camera IP addresses to your server configuration to view camera feeds here.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Pass data from server to JavaScript
+        const cameraIPs = {{ camera_ips|safe }};
+        const cameraData = {{ camera_data|safe }};
+        const numCameras = {{ num_cameras }};
+    </script>
+    <script src="{{ url_for('static', filename='js/cameras.js') }}"></script>
+</body>
+</html>

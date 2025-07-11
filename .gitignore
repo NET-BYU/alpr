@@ -3,6 +3,7 @@
 server/.venv/*
 server/plates/*
 server/*.jsonl
+server/*.json
 server/*.log
 server/config.yaml
 camera/img/*

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALPR Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div class="header-text">
+                    <h1>🚗 ALPR Dashboard</h1>
+                    <p>Real-time License Plate Recognition System</p>
+                </div>
+                
+                <div class="video-container">
+                    <img id="video-stream" class="video-stream" style="display: none;" alt="Camera Feed">
+                    <div id="video-error" class="video-error">
+                        <div>
+                            📹 Loading camera feed...<br>
+                            <small>Connecting to camera</small>
+                        </div>
+                    </div>
+                    
+                    <div class="video-controls">
+                        <button id="prev-camera" class="video-nav" onclick="switchCamera(-1)">‹</button>
+                        <button id="next-camera" class="video-nav" onclick="switchCamera(1)">›</button>
+                    </div>
+                    
+                    <div id="video-info" class="video-info">Camera 1 of 1</div>
+                    <div id="camera-status" class="camera-status"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="total-plates">-</div>
+                <div class="stat-label">Unique Plates (Total Scans)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="avg-confidence">-</div>
+                <div class="stat-label">Avg Confidence</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="last-detection">-</div>
+                <div class="stat-label">Last Detection</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="unique-states">-</div>
+                <div class="stat-label">Unique States</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="sort-by">Sort by:</label>
+                <select id="sort-by">
+                    <option value="timestamp">Timestamp</option>
+                    <option value="license_plate">Plate Number</option>
+                    <option value="state_region">Region</option>
+                    <option value="confidence">Confidence</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="filter-region">Filter Region:</label>
+                <select id="filter-region">
+                    <option value="">All Regions</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="search">Search:</label>
+                <input type="text" id="search" placeholder="Search plates...">
+            </div>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="auto-refresh" checked> Auto-refresh
+                </label>
+            </div>
+            <div class="control-group">
+                <a href="/cameras" class="nav-button">📹 View Cameras</a>
+            </div>
+            <div class="control-group">
+                <a href="/vin" class="nav-button">🔍 VIN Lookup</a>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <div id="loading" class="loading">Loading data...</div>
+            <table id="plates-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-column="license_plate">Plate #</th>
+                        <th class="sortable" data-column="state_region">Region</th>
+                        <th class="sortable" data-column="confidence">Confidence</th>
+                        <th class="sortable" data-column="timestamp">Timestamp</th>
+                        <th class="sortable" data-column="vehicle_info.make">Make</th>
+                        <th class="sortable" data-column="camera_id">Camera ID</th>
+                        <th>Image</th>
+                    </tr>
+                </thead>
+                <tbody id="plates-tbody">
+                </tbody>
+            </table>
+            <div id="no-data" class="no-data" style="display: none;">
+                No license plate data available
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Pass camera data from server to JavaScript
+        const cameraIPs = {{ camera_ips|safe }};
+        const cameraData = {{ camera_data|safe }};
+    </script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

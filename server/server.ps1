@@ -181,7 +181,7 @@ function Clean-Environment {
     Write-Info "Cleaning plates folder and removing data/log files..."
 
     $platesFolder = "plates"
-    $filesToRemove = @("alpr_parsed_data.jsonl", "alpr_raw_data.jsonl", "event.log")
+    $filesToRemove = @("alpr_parsed_data.jsonl", "alpr_raw_data.jsonl", "event.log", "alpr_vin_lookup.json")
 
     # Remove all files in plates folder
     if (Test-Path $platesFolder) {

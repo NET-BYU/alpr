@@ -1,9 +1,14 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template, send_from_directory
 import json
 from datetime import datetime
 import os
 import base64
 import yaml
+import math
+import requests
+from collections import defaultdict
+import threading
+import time
 
 app = Flask(__name__)
 
@@ -16,11 +21,55 @@ raw_output_file = config.get('raw_output_file', 'alpr_raw_data.jsonl')
 parsed_output_file = config.get('parsed_output_file', 'alpr_parsed_data.jsonl')
 event_log_file = config.get('event_log_file', 'event.log')
 plates_dir = config.get('plates_dir', 'plates')
-CAMERA_IPS = config.get('camera_ips', [])
+
+# Camera configuration - support both new and legacy formats
+HTTP_CAMERAS = config.get('http_cameras', [])
+RTSP_CAMERAS_RAW = config.get('rtsp_cameras', [])
+LEGACY_CAMERAS = config.get('camera_ips', [])
+
+# Process RTSP cameras to handle both simple IPs and credential objects
+RTSP_CAMERAS = []
+for camera in RTSP_CAMERAS_RAW:
+    if isinstance(camera, str):
+        # Simple IP format
+        RTSP_CAMERAS.append({
+            'ip': camera,
+            'username': None,
+            'password': None,
+            'rtsp_url': f"rtsp://{camera}:554/"
+        })
+    elif isinstance(camera, dict) and 'ip' in camera:
+        # Object format with credentials
+        ip = camera['ip']
+        username = camera.get('username')
+        password = camera.get('password')
+        
+        if username and password:
+            rtsp_url = f"rtsp://{username}:{password}@{ip}:554/"
+        else:
+            rtsp_url = f"rtsp://{ip}:554/"
+        
+        RTSP_CAMERAS.append({
+            'ip': ip,
+            'username': username,
+            'password': password,
+            'rtsp_url': rtsp_url
+        })
+
+# If using legacy format, treat as HTTP cameras
+if LEGACY_CAMERAS and not HTTP_CAMERAS:
+    HTTP_CAMERAS = LEGACY_CAMERAS
+
+# Create combined camera list for backward compatibility
+CAMERA_IPS = HTTP_CAMERAS  # For backward compatibility with existing code
 
 # Create plates directory if it doesn't exist
 if not os.path.exists(plates_dir):
     os.makedirs(plates_dir)
+
+# VIN lookup configuration
+VIN_RESULTS_FILE = config.get('vin_results_file', 'alpr_vin_lookup.json')
+VIN_API_KEY = 'ehifeCWYw8awg2G'  # Move this to config.yaml in production
 
 def log_event(message):
     """Log events to the event log file"""
@@ -181,9 +230,15 @@ def receive_alpr_data():
 @app.route('/dashboard')
 def dashboard():
     """Display ALPR dashboard"""
-    # Pass camera IPs to the template
-    camera_ips_json = json.dumps(CAMERA_IPS)
-    return render_template_string(DASHBOARD_TEMPLATE, camera_ips=camera_ips_json)
+    # Pass camera data to the template
+    camera_data = {
+        'http_cameras': HTTP_CAMERAS,
+        'rtsp_cameras': RTSP_CAMERAS,
+        'legacy_cameras': CAMERA_IPS  # For backward compatibility
+    }
+    return render_template('dashboard.html', 
+                          camera_ips=json.dumps(CAMERA_IPS),  # Keep for backward compatibility
+                          camera_data=json.dumps(camera_data))
 
 @app.route('/api/plates')
 def get_plates():
@@ -271,1208 +326,385 @@ def get_stats():
 @app.route('/cameras')
 def cameras_grid():
     """Display all cameras in a grid view"""
-    import math
     
-    # Calculate grid size (nearest square)
-    num_cameras = len(CAMERA_IPS)
-    if num_cameras == 0:
+    # Calculate grid size (nearest square) based on total cameras
+    total_cameras = len(HTTP_CAMERAS) + len(RTSP_CAMERAS)
+    if total_cameras == 0:
         grid_size = 1
     else:
-        grid_size = math.ceil(math.sqrt(num_cameras))
+        grid_size = math.ceil(math.sqrt(total_cameras))
     
-    camera_ips_json = json.dumps(CAMERA_IPS)
-    return render_template_string(CAMERAS_TEMPLATE, 
-                                camera_ips=camera_ips_json, 
-                                grid_size=grid_size,
-                                num_cameras=num_cameras)
+    # Pass camera data to the template
+    camera_data = {
+        'http_cameras': HTTP_CAMERAS,
+        'rtsp_cameras': RTSP_CAMERAS,
+        'legacy_cameras': CAMERA_IPS  # For backward compatibility
+    }
+    
+    return render_template('cameras.html', 
+                          camera_ips=json.dumps(CAMERA_IPS),  # Keep for backward compatibility
+                          camera_data=json.dumps(camera_data),
+                          grid_size=grid_size,
+                          num_cameras=total_cameras,
+                          num_http=len(HTTP_CAMERAS),
+                          num_rtsp=len(RTSP_CAMERAS))
 
-# Dashboard HTML Template
-DASHBOARD_TEMPLATE = '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ALPR Dashboard</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+@app.route('/api/vin_lookup', methods=['POST'])
+def vin_lookup():
+    """API endpoint to lookup VIN information"""
+    try:
+        # Get JSON data from the POST request
+        json_data = request.get_json()
         
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+        if json_data is None or 'vin' not in json_data:
+            return jsonify({'error': 'No VIN provided'}), 400
         
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
+        vin = json_data['vin']
         
-        .header {
-            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-            position: relative;
-        }
+        # Check if already looked up
+        if os.path.exists(VIN_RESULTS_FILE):
+            with open(VIN_RESULTS_FILE, 'r') as f:
+                results = json.load(f)
+                if vin in results:
+                    # Return cached result
+                    return jsonify({'status': 'success', 'data': results[vin]}), 200
         
-        .header-content {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 30px;
-        }
+        # Call external VIN lookup service (example: vinapi.io)
+        response = requests.get(f'https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/{vin}?format=json')
         
-        .header-text {
-            flex: 1;
-        }
-        
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-        
-        .video-container {
-            position: relative;
-            flex: 1;
-            max-width: 480px;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        
-        .video-stream {
-            width: 100%;
-            height: 270px;
-            object-fit: cover;
-            display: block;
-        }
-        
-        .video-error {
-            width: 100%;
-            height: 270px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.5);
-            color: white;
-            font-size: 1.1em;
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .video-controls {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            width: 100%;
-            padding: 0 10px;
-            pointer-events: none;
-        }
-        
-        .video-nav {
-            background: rgba(0, 0, 0, 0.7);
-            border: none;
-            color: white;
-            font-size: 24px;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.3s;
-            pointer-events: auto;
-        }
-        
-        .video-nav:hover {
-            background: rgba(0, 0, 0, 0.9);
-        }
-        
-        .video-nav:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-        
-        .video-info {
-            position: absolute;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 5px 15px;
-            border-radius: 15px;
-            font-size: 0.9em;
-        }
-        
-        .camera-status {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #e53e3e;
-        }
-        
-        .camera-status.online {
-            background: #38a169;
-        }
-        
-        .controls {
-            padding: 20px 30px;
-            background: #f7fafc;
-            border-bottom: 1px solid #e2e8f0;
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .control-group label {
-            font-weight: 600;
-            color: #4a5568;
-        }
-        
-        select, input {
-            padding: 8px 12px;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-        }
-        
-        select:focus, input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            padding: 20px 30px;
-            background: #f7fafc;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-        }
-        
-        .stat-number {
-            font-size: 2em;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .stat-label {
-            color: #718096;
-            margin-top: 5px;
-        }
-        
-        .table-container {
-            padding: 30px;
-            overflow-x: auto;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-        }
-        
-        th {
-            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-            color: white;
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        
-        th:hover {
-            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-        }
-        
-        th.sortable::after {
-            content: ' ↕';
-            opacity: 0.5;
-        }
-        
-        th.sort-asc::after {
-            content: ' ↑';
-            opacity: 1;
-        }
-        
-        th.sort-desc::after {
-            content: ' ↓';
-            opacity: 1;
-        }
-        
-        td {
-            padding: 15px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        
-        tr:hover {
-            background-color: #f7fafc;
-        }
-        
-        .plate-number {
-            font-weight: bold;
-            font-size: 1.1em;
-            color: #2d3748;
-            background: #edf2f7;
-            padding: 5px 10px;
-            border-radius: 5px;
-            display: inline-block;
-        }
-        
-        .region {
-            background: #bee3f8;
-            color: #2b6cb0;
-            padding: 3px 8px;
-            border-radius: 15px;
-            font-size: 0.9em;
-            font-weight: 500;
-            cursor: help;
-            position: relative;
-        }
-        
-        .region:hover::after {
-            content: attr(data-confidence);
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #2d3748;
-            color: white;
-            padding: 5px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            white-space: nowrap;
-            z-index: 1000;
-            margin-bottom: 5px;
-        }
-        
-        .region:hover::before {
-            content: '';
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            border: 5px solid transparent;
-            border-top-color: #2d3748;
-            margin-bottom: -5px;
-        }
-        
-        .confidence {
-            font-weight: bold;
-        }
-        
-        .confidence.high { color: #38a169; }
-        .confidence.medium { color: #d69e2e; }
-        .confidence.low { color: #e53e3e; }
-        
-        .timestamp {
-            font-family: monospace;
-            color: #4a5568;
-        }
-        
-        .vehicle-info {
-            font-size: 0.9em;
-            color: #718096;
-        }
-        
-        .plate-image {
-            max-width: 80px;
-            max-height: 40px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: transform 0.3s;
-        }
-        
-        .plate-image:hover {
-            transform: scale(2);
-            z-index: 1000;
-            position: relative;
-        }
-        
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #38a169;
-            color: white;
-            padding: 15px 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            z-index: 1000;
-            transform: translateX(400px);
-            transition: transform 0.3s ease;
-            max-width: 400px;
-        }
-        
-        .notification.show {
-            transform: translateX(0);
-        }
-        
-        .notification.heartbeat {
-            background: #3182ce;
-        }
-        
-        .notification.error {
-            background: #e53e3e;
-        }
-        
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #718096;
-        }
-        
-        .no-data {
-            text-align: center;
-            padding: 40px;
-            color: #718096;
-        }
-        
-        .nav-button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-            text-decoration: none;
-            display: inline-block;
-        }
-        
-        .nav-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        
-        @media (max-width: 1024px) {
-            .header-content {
-                flex-direction: column;
-                gap: 20px;
-            }
+        if response.status_code == 200:
+            data = response.json()
             
-            .video-container {
-                max-width: 100%;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .controls {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .control-group {
-                justify-content: space-between;
-            }
-            
-            table {
-                font-size: 0.9em;
-            }
-            
-            .plate-image:hover {
-                transform: scale(1.5);
-            }
-            
-            .video-stream {
-                height: 200px;
-            }
-            
-            .video-error {
-                height: 200px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-content">
-                <div class="header-text">
-                    <h1>🚗 ALPR Dashboard</h1>
-                    <p>Real-time License Plate Recognition System</p>
-                </div>
+            # Extract relevant information
+            if 'Results' in data and len(data['Results']) > 0:
+                vehicle_data = data['Results'][0]
                 
-                <div class="video-container">
-                    <img id="video-stream" class="video-stream" style="display: none;" alt="Camera Feed">
-                    <div id="video-error" class="video-error">
-                        <div>
-                            📹 Loading camera feed...<br>
-                            <small>Connecting to camera</small>
-                        </div>
-                    </div>
-                    
-                    <div class="video-controls">
-                        <button id="prev-camera" class="video-nav" onclick="switchCamera(-1)">‹</button>
-                        <button id="next-camera" class="video-nav" onclick="switchCamera(1)">›</button>
-                    </div>
-                    
-                    <div id="video-info" class="video-info">Camera 1 of 1</div>
-                    <div id="camera-status" class="camera-status"></div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-number" id="total-plates">-</div>
-                <div class="stat-label">Total Plates</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="avg-confidence">-</div>
-                <div class="stat-label">Avg Confidence</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="last-detection">-</div>
-                <div class="stat-label">Last Detection</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="unique-states">-</div>
-                <div class="stat-label">Unique States</div>
-            </div>
-        </div>
-        
-        <div class="controls">
-            <div class="control-group">
-                <label for="sort-by">Sort by:</label>
-                <select id="sort-by">
-                    <option value="timestamp">Timestamp</option>
-                    <option value="license_plate">Plate Number</option>
-                    <option value="state_region">Region</option>
-                    <option value="confidence">Confidence</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label for="filter-region">Filter Region:</label>
-                <select id="filter-region">
-                    <option value="">All Regions</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label for="search">Search:</label>
-                <input type="text" id="search" placeholder="Search plates...">
-            </div>
-            <div class="control-group">
-                <label>
-                    <input type="checkbox" id="auto-refresh" checked> Auto-refresh
-                </label>
-            </div>
-            <div class="control-group">
-                <a href="/cameras" class="nav-button">📹 View Cameras</a>
-            </div>
-        </div>
-        
-        <div class="table-container">
-            <div id="loading" class="loading">Loading data...</div>
-            <table id="plates-table" style="display: none;">
-                <thead>
-                    <tr>
-                        <th class="sortable" data-column="license_plate">Plate #</th>
-                        <th class="sortable" data-column="state_region">Region</th>
-                        <th class="sortable" data-column="confidence">Confidence</th>
-                        <th class="sortable" data-column="timestamp">Timestamp</th>
-                        <th class="sortable" data-column="vehicle_info.make">Make</th>
-                        <th class="sortable" data-column="vehicle_info.color">Color</th>
-                        <th>Image</th>
-                    </tr>
-                </thead>
-                <tbody id="plates-tbody">
-                </tbody>
-            </table>
-            <div id="no-data" class="no-data" style="display: none;">
-                No license plate data available
-            </div>
-        </div>
-    </div>
+                # Save to results file
+                if os.path.exists(VIN_RESULTS_FILE):
+                    with open(VIN_RESULTS_FILE, 'r') as f:
+                        all_results = json.load(f)
+                else:
+                    all_results = {}
+                
+                all_results[vin] = vehicle_data
+                
+                with open(VIN_RESULTS_FILE, 'w') as f:
+                    json.dump(all_results, f, indent=4)
+                
+                return jsonify({'status': 'success', 'data': vehicle_data}), 200
+            else:
+                return jsonify({'status': 'error', 'message': 'No data found for this VIN'}), 404
+        else:
+            return jsonify({'status': 'error', 'message': 'Error calling VIN lookup service'}), 500
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    <script>
-        let platesData = [];
-        let sortColumn = 'timestamp';
-        let sortDirection = 'desc';
-        let lastEventCount = 0;
-        
-        // Camera management - Get IPs from server
-        const cameraIPs = {{ camera_ips|safe }}; // This will be populated by the server
-        let currentCameraIndex = 0;
-        
-        // Camera functions
-        function switchCamera(direction) {
-            currentCameraIndex += direction;
-            
-            if (currentCameraIndex < 0) {
-                currentCameraIndex = cameraIPs.length - 1;
-            } else if (currentCameraIndex >= cameraIPs.length) {
-                currentCameraIndex = 0;
-            }
-            
-            loadCurrentCamera();
-            updateCameraControls();
-        }
-        
-        function loadCurrentCamera() {
-            const videoStream = document.getElementById('video-stream');
-            const videoError = document.getElementById('video-error');
-            const cameraStatus = document.getElementById('camera-status');
-            const videoInfo = document.getElementById('video-info');
-            
-            if (cameraIPs.length === 0) {
-                videoError.innerHTML = '<div>📹 No cameras configured<br><small>Add camera IPs to the server configuration</small></div>';
-                cameraStatus.classList.remove('online');
-                return;
-            }
-            
-            const currentIP = cameraIPs[currentCameraIndex];
-            const streamUrl = `http://${currentIP}:8080`;
-            
-            // Update info
-            videoInfo.textContent = `Camera ${currentCameraIndex + 1} of ${cameraIPs.length} (${currentIP})`;
-            
-            // Show loading state
-            videoError.innerHTML = '<div>📹 Connecting to camera...<br><small>Loading stream</small></div>';
-            videoError.style.display = 'flex';
-            videoStream.style.display = 'none';
-            cameraStatus.classList.remove('online');
-            
-            // Test if camera is accessible
-            const testImg = new Image();
-            testImg.onload = function() {
-                // Camera is accessible, switch to video stream
-                videoStream.src = streamUrl;
-                videoStream.onload = function() {
-                    videoStream.style.display = 'block';
-                    videoError.style.display = 'none';
-                    cameraStatus.classList.add('online');
-                };
-                videoStream.onerror = function() {
-                    showCameraError(`Failed to load stream from ${currentIP}`);
-                };
-            };
-            testImg.onerror = function() {
-                showCameraError(`Camera at ${currentIP}:8080 is not accessible`);
-            };
-            testImg.src = streamUrl;
-            
-            // Set a timeout for connection attempt
-            setTimeout(() => {
-                if (!cameraStatus.classList.contains('online')) {
-                    showCameraError(`Connection timeout to ${currentIP}`);
-                }
-            }, 10000);
-        }
-        
-        function showCameraError(message) {
-            const videoError = document.getElementById('video-error');
-            const cameraStatus = document.getElementById('camera-status');
-            
-            videoError.innerHTML = `<div>📹 Camera Offline<br><small>${message}</small></div>`;
-            videoError.style.display = 'flex';
-            document.getElementById('video-stream').style.display = 'none';
-            cameraStatus.classList.remove('online');
-        }
-        
-        function updateCameraControls() {
-            const prevBtn = document.getElementById('prev-camera');
-            const nextBtn = document.getElementById('next-camera');
-            
-            if (cameraIPs.length <= 1) {
-                prevBtn.style.display = 'none';
-                nextBtn.style.display = 'none';
-            } else {
-                prevBtn.style.display = 'flex';
-                nextBtn.style.display = 'flex';
-            }
-        }
-        
-        // Fetch and display plates data
-        async function fetchPlates() {
-            try {
-                const response = await fetch('/api/plates');
-                const data = await response.json();
-                platesData = data;
-                updateTable();
-                updateStats();
-                updateRegionFilter();
-            } catch (error) {
-                console.error('Error fetching plates:', error);
-                showNotification('Error fetching data', 'error');
-            }
-        }
-        
-        // Check for new events and show notifications
-        async function checkEvents() {
-            try {
-                const response = await fetch('/api/events');
-                const events = await response.json();
-                
-                if (events.length > lastEventCount) {
-                    const newEvents = events.slice(lastEventCount);
-                    newEvents.forEach(event => {
-                        if (event.includes('LICENSE PLATE')) {
-                            showNotification(event, 'license');
-                        } else if (event.includes('heartbeat')) {
-                            showNotification(event, 'heartbeat');
-                        }
-                    });
-                }
-                lastEventCount = events.length;
-            } catch (error) {
-                console.error('Error checking events:', error);
-            }
-        }
-        
-        // Show notification
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => notification.classList.add('show'), 100);
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-                setTimeout(() => document.body.removeChild(notification), 300);
-            }, 4000);
-        }
-        
-        // Update statistics
-        function updateStats() {
-            if (platesData.length === 0) return;
-            
-            const totalPlates = platesData.length;
-            const avgConfidence = (platesData.reduce((sum, plate) => sum + (plate.confidence || 0), 0) / totalPlates).toFixed(1);
-            const lastDetection = platesData.length > 0 ? 
-                new Date(platesData[platesData.length - 1].timestamp).toLocaleTimeString() : 'None';
-            const uniqueStates = new Set(platesData.map(plate => plate.state_region)).size;
-            
-            document.getElementById('total-plates').textContent = totalPlates;
-            document.getElementById('avg-confidence').textContent = avgConfidence + '%';
-            document.getElementById('last-detection').textContent = lastDetection;
-            document.getElementById('unique-states').textContent = uniqueStates;
-        }
-        
-        // Update region filter options
-        function updateRegionFilter() {
-            const regionSelect = document.getElementById('filter-region');
-            const regions = [...new Set(platesData.map(plate => plate.state_region))].sort();
-            
-            // Clear existing options except "All Regions"
-            regionSelect.innerHTML = '<option value="">All Regions</option>';
-            
-            regions.forEach(region => {
-                if (region) {
-                    const option = document.createElement('option');
-                    option.value = region;
-                    option.textContent = region;
-                    regionSelect.appendChild(option);
-                }
-            });
-        }
-        
-        // Get nested property value
-        function getNestedValue(obj, path) {
-            return path.split('.').reduce((current, key) => current && current[key], obj);
-        }
-        
-        // Sort data
-        function sortData(column) {
-            if (sortColumn === column) {
-                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortColumn = column;
-                sortDirection = 'desc';
-            }
-            
-            platesData.sort((a, b) => {
-                let aVal = getNestedValue(a, column);
-                let bVal = getNestedValue(b, column);
-                
-                if (column === 'timestamp') {
-                    aVal = new Date(aVal);
-                    bVal = new Date(bVal);
-                }
-                
-                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-                return 0;
-            });
-            
-            updateTable();
-            updateSortHeaders();
-        }
-        
-        // Update sort headers
-        function updateSortHeaders() {
-            document.querySelectorAll('th').forEach(th => {
-                th.classList.remove('sort-asc', 'sort-desc');
-            });
-            
-            const currentTh = document.querySelector(`th[data-column="${sortColumn}"]`);
-            if (currentTh) {
-                currentTh.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
-            }
-        }
-        
-        // Filter and update table
-        function updateTable() {
-            const regionFilter = document.getElementById('filter-region').value;
-            const searchTerm = document.getElementById('search').value.toLowerCase();
-            
-            let filteredData = platesData.filter(plate => {
-                const matchesRegion = !regionFilter || plate.state_region === regionFilter;
-                const matchesSearch = !searchTerm || 
-                    plate.license_plate?.toLowerCase().includes(searchTerm) ||
-                    plate.state_region?.toLowerCase().includes(searchTerm) ||
-                    plate.vehicle_info?.make?.toLowerCase().includes(searchTerm) ||
-                    plate.vehicle_info?.color?.toLowerCase().includes(searchTerm);
-                
-                return matchesRegion && matchesSearch;
-            });
-            
-            const tbody = document.getElementById('plates-tbody');
-            const table = document.getElementById('plates-table');
-            const loading = document.getElementById('loading');
-            const noData = document.getElementById('no-data');
-            
-            if (filteredData.length === 0) {
-                table.style.display = 'none';
-                loading.style.display = 'none';
-                noData.style.display = 'block';
-                return;
-            }
-            
-            tbody.innerHTML = '';
-            
-            filteredData.forEach(plate => {
-                const row = document.createElement('tr');
-                
-                const confidenceClass = plate.confidence > 90 ? 'high' : 
-                                      plate.confidence > 75 ? 'medium' : 'low';
-                
-                const timestamp = plate.timestamp ? 
-                    new Date(plate.timestamp).toLocaleString() : 'Unknown';
-                
-                const make = plate.vehicle_info?.make || 'Unknown';
-                const color = plate.vehicle_info?.color || 'Unknown';
-                
-                row.innerHTML = `
-                    <td><span class="plate-number">${plate.license_plate || 'Unknown'}</span></td>
-                    <td><span class="region" data-confidence="Region Confidence: ${(plate.region_confidence || 0).toFixed(1)}%">${plate.state_region || 'Unknown'}</span></td>
-                    <td><span class="confidence ${confidenceClass}">${(plate.confidence || 0).toFixed(1)}%</span></td>
-                    <td><span class="timestamp">${timestamp}</span></td>
-                    <td><span class="vehicle-info">${make}</span></td>
-                    <td><span class="vehicle-info">${color}</span></td>
-                    <td>${plate.image_filename ? 
-                        `<img src="/plates/${plate.image_filename}" alt="Plate" class="plate-image">` : 
-                        'No image'}</td>
-                `;
-                
-                tbody.appendChild(row);
-            });
-            
-            table.style.display = 'table';
-            loading.style.display = 'none';
-            noData.style.display = 'none';
-        }
-        
-        // Event listeners
-        document.getElementById('sort-by').addEventListener('change', (e) => {
-            sortData(e.target.value);
-        });
-        
-        document.getElementById('filter-region').addEventListener('change', updateTable);
-        document.getElementById('search').addEventListener('input', updateTable);
-        
-        document.querySelectorAll('th.sortable').forEach(th => {
-            th.addEventListener('click', () => {
-                sortData(th.dataset.column);
-            });
-        });
-        
-        // Auto-refresh functionality
-        function startAutoRefresh() {
-            setInterval(() => {
-                if (document.getElementById('auto-refresh').checked) {
-                    fetchPlates();
-                    checkEvents();
-                }
-            }, 3000); // Refresh every 3 seconds
-        }
-        
-        // Initialize
-        fetchPlates();
-        startAutoRefresh();
-        loadCurrentCamera();
-        updateCameraControls();
-        
-        // Initial sort by timestamp (newest first)
-        setTimeout(() => {
-            sortData('timestamp');
-        }, 500);
-        
-        // Refresh camera connection periodically
-        setInterval(() => {
-            const cameraStatus = document.getElementById('camera-status');
-            if (!cameraStatus.classList.contains('online')) {
-                loadCurrentCamera();
-            }
-        }, 30000); // Try to reconnect every 30 seconds
-    </script>
-</body>
-</html>
-'''
+def get_unique_plates_from_data():
+    """Get unique license plates from parsed ALPR data"""
+    unique_plates = defaultdict(lambda: {'state': None, 'confidence': 0, 'camera_id': None, 'timestamp': None, 'image_filename': None})
+    
+    try:
+        if os.path.exists(parsed_output_file):
+            with open(parsed_output_file, 'r') as f:
+                for line in f:
+                    try:
+                        data = json.loads(line.strip())
+                        license_plate = data.get('license_plate')
+                        state_region = data.get('state_region')
+                        confidence = data.get('confidence', 0)
+                        camera_id = data.get('camera_id')
+                        timestamp = data.get('timestamp')
+                        image_filename = data.get('image_filename')
+                        
+                        if license_plate and state_region:
+                            # Extract state code from region (e.g., 'us-tx' -> 'TX')
+                            state_code = state_region.split('-')[-1].upper() if '-' in state_region else state_region.upper()
+                            
+                            # Keep the entry with highest confidence for each plate
+                            if confidence > unique_plates[license_plate]['confidence']:
+                                unique_plates[license_plate] = {
+                                    'state': state_code,
+                                    'confidence': confidence,
+                                    'camera_id': camera_id,
+                                    'timestamp': timestamp,
+                                    'original_region': state_region,
+                                    'image_filename': image_filename
+                                }
+                                
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        log_event(f"Error loading plates data: {e}")
+    
+    # Convert to list format
+    plates_list = []
+    for plate, info in unique_plates.items():
+        plates_list.append({
+            'license_plate': plate,
+            'state': info['state'],
+            'confidence': info['confidence'],
+            'camera_id': info['camera_id'],
+            'timestamp': info['timestamp'],
+            'original_region': info['original_region'],
+            'image_filename': info['image_filename']
+        })
+    
+    return plates_list
 
-# New CAMERAS_TEMPLATE
-CAMERAS_TEMPLATE = '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ALPR Camera Grid</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .header h1 {
-            font-size: 2.5em;
-            margin: 0;
-        }
-        
-        .nav-button {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: inline-block;
-        }
-        
-        .nav-button:hover {
-            background: rgba(255, 255, 255, 0.3);
-            border-color: rgba(255, 255, 255, 0.5);
-            transform: translateY(-2px);
-        }
-        
-        .camera-grid {
-            display: grid;
-            grid-template-columns: repeat({{ grid_size }}, 1fr);
-            gap: 20px;
-            padding: 30px;
-        }
-        
-        .camera-cell {
-            position: relative;
-            background: rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            /* Maintain 16:9 aspect ratio */
-            aspect-ratio: 16 / 9;
-            width: 100%;
-        }
-        
-        .camera-stream {
-            width: 100%;
-            height: 100%;
-            object-fit: contain; /* Changed from cover to contain to maintain aspect ratio */
-            background: #000; /* Black background for letterboxing if needed */
-            display: block;
-        }
-        
-        .camera-error {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.5);
-            color: white;
-            font-size: 1.1em;
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .camera-info {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 5px;
-            font-size: 0.9em;
-            font-weight: 500;
-        }
-        
-        .camera-status {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #e53e3e;
-            border: 2px solid white;
-        }
-        
-        .camera-status.online {
-            background: #38a169;
-        }
-        
-        .no-cameras {
-            text-align: center;
-            padding: 60px 30px;
-            color: #718096;
-        }
-        
-        .no-cameras h2 {
-            font-size: 2em;
-            margin-bottom: 20px;
-        }
-        
-        .grid-info {
-            background: #f7fafc;
-            padding: 15px 30px;
-            border-bottom: 1px solid #e2e8f0;
-            text-align: center;
-            color: #4a5568;
-        }
-        
-        @media (max-width: 768px) {
-            .camera-grid {
-                grid-template-columns: 1fr;
-                gap: 15px;
-                padding: 20px;
-            }
-            
-            .header {
-                flex-direction: column;
-                gap: 20px;
-                text-align: center;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-        }
-        
-        @media (max-width: 1024px) and (min-width: 769px) {
-            .camera-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-        
-        /* For very small screens, allow some flexibility in aspect ratio */
-        @media (max-width: 480px) {
-            .camera-cell {
-                aspect-ratio: 4 / 3; /* Slightly taller for mobile */
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>📹 Camera Grid View</h1>
-            <a href="/dashboard" class="nav-button">📊 View Dashboard</a>
-        </div>
-        
-        {% if num_cameras > 0 %}
-        <div class="grid-info">
-            Displaying {{ num_cameras }} camera{{ 's' if num_cameras != 1 else '' }} in a {{ grid_size }}×{{ grid_size }} grid
-        </div>
-        
-        <div class="camera-grid">
-            {% for i in range(num_cameras) %}
-            <div class="camera-cell">
-                <img id="camera-stream-{{ i }}" class="camera-stream" style="display: none;" alt="Camera {{ i + 1 }} Feed">
-                <div id="camera-error-{{ i }}" class="camera-error">
-                    <div>
-                        📹 Loading camera feed...<br>
-                        <small>Connecting to camera {{ i + 1 }}</small>
-                    </div>
-                </div>
-                <div id="camera-info-{{ i }}" class="camera-info">Camera {{ i + 1 }}</div>
-                <div id="camera-status-{{ i }}" class="camera-status"></div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="no-cameras">
-            <h2>📹 No Cameras Configured</h2>
-            <p>Add camera IP addresses to your server configuration to view camera feeds here.</p>
-        </div>
-        {% endif %}
-    </div>
+def load_existing_vin_results():
+    """Load existing VIN lookup results to avoid duplicate API calls"""
+    try:
+        if os.path.exists(VIN_RESULTS_FILE):
+            with open(VIN_RESULTS_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        log_event(f"Error loading existing VIN results: {e}")
+    return {}
 
-    <script>
-        // Get camera IPs from server
-        const cameraIPs = {{ camera_ips|safe }};
-        const numCameras = {{ num_cameras }};
+def save_vin_results(results):
+    """Save VIN lookup results to file"""
+    try:
+        with open(VIN_RESULTS_FILE, 'w') as f:
+            json.dump(results, f, indent=2)
+        return True
+    except Exception as e:
+        log_event(f"Error saving VIN results: {e}")
+        return False
+
+def lookup_vin_for_plate(license_plate, state):
+    """Perform VIN lookup for a single plate"""
+    url = 'https://platetovin.com/api/convert'
+    payload = {
+        "state": state,
+        "plate": license_plate
+    }
+    headers = {
+        'Authorization': VIN_API_KEY,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": str(e)}
+
+@app.route('/vin')
+def vin_page():
+    """Display VIN lookup page"""
+    # Get unique plates
+    plates = get_unique_plates_from_data()
+    
+    # Load existing VIN results
+    existing_results = load_existing_vin_results()
+    
+    # Mark plates that already have VIN data
+    for plate in plates:
+        license_plate = plate['license_plate']
+        original_state = plate['state']
+        plate_key = f"{license_plate}_{original_state}"
         
-        function loadCamera(index) {
-            if (index >= cameraIPs.length) return;
-            
-            const videoStream = document.getElementById(`camera-stream-${index}`);
-            const videoError = document.getElementById(`camera-error-${index}`);
-            const cameraStatus = document.getElementById(`camera-status-${index}`);
-            const cameraInfo = document.getElementById(`camera-info-${index}`);
-            
-            const currentIP = cameraIPs[index];
-            const streamUrl = `http://${currentIP}:8080`;
-            
-            // Update info
-            cameraInfo.textContent = `Camera ${index + 1} (${currentIP})`;
-            
-            // Show loading state
-            videoError.innerHTML = `<div>📹 Connecting to camera...<br><small>Loading stream from ${currentIP}</small></div>`;
-            videoError.style.display = 'flex';
-            videoStream.style.display = 'none';
-            cameraStatus.classList.remove('online');
-            
-            // Test if camera is accessible
-            const testImg = new Image();
-            testImg.onload = function() {
-                // Camera is accessible, switch to video stream
-                videoStream.src = streamUrl;
-                videoStream.onload = function() {
-                    videoStream.style.display = 'block';
-                    videoError.style.display = 'none';
-                    cameraStatus.classList.add('online');
-                };
-                videoStream.onerror = function() {
-                    showCameraError(index, `Failed to load stream from ${currentIP}`);
-                };
-            };
-            testImg.onerror = function() {
-                showCameraError(index, `Camera at ${currentIP}:8080 is not accessible`);
-            };
-            testImg.src = streamUrl;
-            
-            // Set a timeout for connection attempt
-            setTimeout(() => {
-                const status = document.getElementById(`camera-status-${index}`);
-                if (!status.classList.contains('online')) {
-                    showCameraError(index, `Connection timeout to ${currentIP}`);
-                }
-            }, 10000);
-        }
+        # First check with original state
+        if plate_key in existing_results:
+            plate['has_vin_data'] = True
+            plate['vin_data'] = existing_results[plate_key]
+        else:
+            # Check if this plate exists with any other state (due to state overrides)
+            plate['has_vin_data'] = False
+            for vin_key, vin_result in existing_results.items():
+                if vin_key.startswith(f"{license_plate}_"):
+                    # Found this plate with a different state
+                    plate['has_vin_data'] = True
+                    plate['vin_data'] = vin_result
+                    # Update the state to match what was actually used for VIN lookup
+                    plate['state'] = vin_key.split('_', 1)[1]
+                    break
+    
+    return render_template('vin.html', 
+                          plates=plates,
+                          total_plates=len(plates),
+                          plates_with_vin=len([p for p in plates if p['has_vin_data']]))
+
+@app.route('/api/vin/lookup', methods=['POST'])
+def api_vin_lookup():
+    """API endpoint to perform VIN lookups for selected plates"""
+    try:
+        data = request.get_json()
+        selected_plates = data.get('plates', [])
         
-        function showCameraError(index, message) {
-            const videoError = document.getElementById(`camera-error-${index}`);
-            const cameraStatus = document.getElementById(`camera-status-${index}`);
-            const videoStream = document.getElementById(`camera-stream-${index}`);
-            
-            videoError.innerHTML = `<div>📹 Camera Offline<br><small>${message}</small></div>`;
-            videoError.style.display = 'flex';
-            videoStream.style.display = 'none';
-            cameraStatus.classList.remove('online');
-        }
+        if not selected_plates:
+            return jsonify({'error': 'No plates selected'}), 400
         
-        function loadAllCameras() {
-            for (let i = 0; i < numCameras; i++) {
-                loadCamera(i);
+        # Load existing results
+        existing_results = load_existing_vin_results()
+        
+        results = []
+        new_lookups = 0
+        
+        for plate_info in selected_plates:
+            license_plate = plate_info['license_plate']
+            state = plate_info['state']
+            plate_key = f"{license_plate}_{state}"
+            
+            # Check if we already have results for this plate
+            if plate_key in existing_results:
+                results.append({
+                    'license_plate': license_plate,
+                    'state': state,
+                    'status': 'existing',
+                    'data': existing_results[plate_key]
+                })
+                continue
+            
+            # Perform new lookup
+            log_event(f"VIN Lookup: {license_plate} ({state})")
+            vin_data = lookup_vin_for_plate(license_plate, state)
+            
+            # Add metadata
+            result_entry = {
+                'license_plate': license_plate,
+                'state': state,
+                'original_region': plate_info.get('original_region'),
+                'confidence': plate_info.get('confidence'),
+                'camera_id': plate_info.get('camera_id'),
+                'timestamp': plate_info.get('timestamp'),
+                'vin_lookup': vin_data,
+                'lookup_timestamp': datetime.now().isoformat()
             }
-        }
+            
+            # Save to existing results
+            existing_results[plate_key] = result_entry
+            
+            results.append({
+                'license_plate': license_plate,
+                'state': state,
+                'status': 'success' if 'error' not in vin_data else 'error',
+                'data': result_entry
+            })
+            
+            new_lookups += 1
+            
+            # Rate limiting
+            time.sleep(0.5)
         
-        function checkAllCameras() {
-            for (let i = 0; i < numCameras; i++) {
-                const cameraStatus = document.getElementById(`camera-status-${i}`);
-                if (cameraStatus && !cameraStatus.classList.contains('online')) {
-                    loadCamera(i);
-                }
-            }
-        }
+        # Save updated results
+        if save_vin_results(existing_results):
+            log_event(f"VIN Lookup completed: {new_lookups} new lookups, {len(results)} total results")
+            return jsonify({
+                'status': 'success',
+                'results': results,
+                'new_lookups': new_lookups,
+                'total_results': len(results)
+            })
+        else:
+            return jsonify({'error': 'Failed to save results'}), 500
+            
+    except Exception as e:
+        log_event(f"Error in VIN lookup: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/vin/results')
+def api_vin_results():
+    """API endpoint to get all VIN lookup results"""
+    try:
+        results = load_existing_vin_results()
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/vin/data')
+def api_get_vin_data():
+    """API endpoint to get VIN data for a specific plate"""
+    try:
+        license_plate = request.args.get('plate')
+        state = request.args.get('state')
         
-        // Initialize all cameras
-        loadAllCameras();
+        if not license_plate or not state:
+            return jsonify({'error': 'Both plate and state parameters are required'}), 400
         
-        // Refresh camera connections periodically
-        setInterval(() => {
-            checkAllCameras();
-        }, 30000); // Try to reconnect every 30 seconds
-    </script>
-</body>
-</html>
-'''
+        # Load existing results
+        existing_results = load_existing_vin_results()
+        plate_key = f"{license_plate}_{state}"
+        
+        if plate_key in existing_results:
+            return jsonify({
+                'status': 'success',
+                'vin_data': existing_results[plate_key]
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'error': 'No VIN data found for this plate'
+            }), 404
+            
+    except Exception as e:
+        log_event(f"Error fetching VIN data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/vin/clear', methods=['POST'])
+def api_clear_vin_data():
+    """API endpoint to clear VIN data for selected plates"""
+    try:
+        data = request.get_json()
+        plates_to_clear = data.get('plates', [])
+        
+        if not plates_to_clear:
+            return jsonify({'error': 'No plates specified for clearing'}), 400
+        
+        # Load existing results
+        existing_results = load_existing_vin_results()
+        
+        cleared_count = 0
+        not_found_count = 0
+        
+        for plate_info in plates_to_clear:
+            license_plate = plate_info['license_plate']
+            state = plate_info['state']
+            plate_key = f"{license_plate}_{state}"
+            
+            if plate_key in existing_results:
+                del existing_results[plate_key]
+                cleared_count += 1
+                log_event(f"Cleared VIN data for: {license_plate} ({state})")
+            else:
+                not_found_count += 1
+        
+        # Save updated results
+        if save_vin_results(existing_results):
+            log_event(f"VIN data cleared: {cleared_count} plates cleared, {not_found_count} not found")
+            return jsonify({
+                'status': 'success',
+                'cleared_count': cleared_count,
+                'not_found_count': not_found_count,
+                'message': f'Successfully cleared VIN data for {cleared_count} plates'
+            })
+        else:
+            return jsonify({'error': 'Failed to save updated results'}), 500
+            
+    except Exception as e:
+        log_event(f"Error clearing VIN data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/vin/clear_all', methods=['POST'])
+def api_clear_all_vin_data():
+    """API endpoint to clear all VIN data"""
+    try:
+        # Create empty results file
+        if save_vin_results({}):
+            log_event("All VIN data cleared")
+            return jsonify({
+                'status': 'success',
+                'message': 'All VIN data has been cleared'
+            })
+        else:
+            return jsonify({'error': 'Failed to clear VIN data'}), 500
+            
+    except Exception as e:
+        log_event(f"Error clearing all VIN data: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Initialize log file
