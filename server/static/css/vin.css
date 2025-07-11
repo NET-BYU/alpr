@@ -1,70 +1,8 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/* ==============================================
+   ALPR VIN Lookup - Specific Styles
+   ============================================== */
 
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    padding: 20px;
-}
-
-.container {
-    max-width: 1400px;
-    margin: 0 auto;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 15px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-}
-
-.header {
-    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-    color: white;
-    padding: 30px;
-}
-
-.header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.header-text h1 {
-    font-size: 2.5em;
-    margin-bottom: 10px;
-}
-
-.header-text p {
-    font-size: 1.1em;
-    opacity: 0.9;
-}
-
-.nav-buttons {
-    display: flex;
-    gap: 15px;
-}
-
-.nav-button {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-decoration: none;
-    display: inline-block;
-}
-
-.nav-button:hover {
-    background: rgba(255, 255, 255, 0.3);
-    border-color: rgba(255, 255, 255, 0.5);
-    transform: translateY(-2px);
-}
+@import url('base.css');
 
 .stats {
     display: grid;
@@ -190,75 +128,7 @@ body {
     font-weight: 500;
 }
 
-.table-container {
-    padding: 30px;
-    overflow-x: auto;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-}
-
-th {
-    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-    color: white;
-    padding: 15px;
-    text-align: left;
-    font-weight: 600;
-}
-
-td {
-    padding: 15px;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-tr:hover {
-    background-color: #f7fafc;
-}
-
-.plate-number {
-    font-weight: bold;
-    font-size: 1.1em;
-    color: #2d3748;
-    background: #edf2f7;
-    padding: 5px 10px;
-    border-radius: 5px;
-    display: inline-block;
-}
-
-.state-code {
-    font-weight: 600;
-    color: #4a5568;
-    background: #f7fafc;
-    padding: 3px 8px;
-    border-radius: 4px;
-    display: inline-block;
-}
-
-.confidence {
-    font-weight: bold;
-    color: #38a169;
-}
-
-.camera-id {
-    font-family: monospace;
-    color: #4a5568;
-    background: #f7fafc;
-    padding: 2px 6px;
-    border-radius: 4px;
-    display: inline-block;
-}
-
-.timestamp {
-    font-family: monospace;
-    color: #718096;
-    font-size: 0.9em;
-}
+/* VIN-specific table elements inherit from base.css */
 
 .status-badge {
     padding: 4px 12px;

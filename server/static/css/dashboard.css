@@ -1,54 +1,25 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/* ==============================================
+   ALPR Dashboard - Specific Styles
+   ============================================== */
 
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+@import url('base.css');
+
+/* Controls Section Nav Button Override */
+.controls .nav-button {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    padding: 20px;
-}
-
-.container {
-    max-width: 1400px;
-    margin: 0 auto;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 15px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-}
-
-.header {
-    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
     color: white;
-    padding: 30px;
-    text-align: center;
-    position: relative;
+    border: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.header-content {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 30px;
+.controls .nav-button:hover {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+    border: none;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3);
 }
 
-.header-text {
-    flex: 1;
-}
-
-.header h1 {
-    font-size: 2.5em;
-    margin-bottom: 10px;
-}
-
-.header p {
-    font-size: 1.1em;
-    opacity: 0.9;
-}
-
+/* Dashboard Video Container */
 .video-container {
     position: relative;
     flex: 1;
@@ -137,96 +108,13 @@ body {
     background: #e53e3e;
 }
 
-.camera-status.online {
-    background: #38a169;
-}
-
-.controls {
-    padding: 20px 30px;
-    background: #f7fafc;
-    border-bottom: 1px solid #e2e8f0;
-    display: flex;
-    gap: 15px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.control-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.control-group label {
-    font-weight: 600;
-    color: #4a5568;
-}
-
-select, input {
-    padding: 8px 12px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    font-size: 14px;
-    transition: border-color 0.3s;
-}
-
-select:focus, input:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-.stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    padding: 20px 30px;
-    background: #f7fafc;
-}
-
-.stat-card {
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    text-align: center;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-}
-
-.stat-number {
-    font-size: 2em;
-    font-weight: bold;
-    color: #667eea;
-}
-
-.stat-label {
-    color: #718096;
-    margin-top: 5px;
-}
-
-.table-container {
-    padding: 30px;
-    overflow-x: auto;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-}
-
-th {
-    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-    color: white;
-    padding: 15px;
-    text-align: left;
-    font-weight: 600;
+/* Dashboard Table Enhancements */
+th.sortable {
     cursor: pointer;
     transition: background-color 0.3s;
 }
 
-th:hover {
+th.sortable:hover {
     background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
 }
 
@@ -245,31 +133,26 @@ th.sort-desc::after {
     opacity: 1;
 }
 
-td {
-    padding: 15px;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-tr:hover {
-    background-color: #f7fafc;
-}
-
-.plate-number {
-    font-weight: bold;
-    font-size: 1.1em;
-    color: #2d3748;
-    background: #edf2f7;
-    padding: 5px 10px;
-    border-radius: 5px;
-    display: inline-block;
-}
-
 .plate-number.multiple-scans {
     background: #fed7d7;
     color: #c53030;
     border: 1px solid #feb2b2;
 }
 
+/* Confidence Colors */
+.confidence.high { 
+    color: #38a169; 
+}
+
+.confidence.medium { 
+    color: #d69e2e; 
+}
+
+.confidence.low { 
+    color: #e53e3e; 
+}
+
+/* Hover Tooltips */
 .hover-tooltip {
     position: relative;
     cursor: help;
@@ -306,42 +189,13 @@ tr:hover {
     margin-bottom: -5px;
 }
 
-.confidence {
-    font-weight: bold;
-}
-
-.confidence.high { 
-    color: #38a169; 
-}
-
-.confidence.medium { 
-    color: #d69e2e; 
-}
-
-.confidence.low { 
-    color: #e53e3e; 
-}
-
-.timestamp {
-    font-family: monospace;
-    color: #4a5568;
-}
-
+/* Vehicle Info */
 .vehicle-info {
     font-size: 0.9em;
     color: #718096;
 }
 
-.camera-id {
-    font-family: monospace;
-    font-weight: 600;
-    color: #4a5568;
-    background: #f7fafc;
-    padding: 2px 6px;
-    border-radius: 4px;
-    display: inline-block;
-}
-
+/* Plate Images */
 .plate-image {
     max-width: 80px;
     max-height: 40px;
@@ -356,6 +210,7 @@ tr:hover {
     position: relative;
 }
 
+/* Notifications */
 .notification {
     position: fixed;
     top: 20px;
@@ -383,70 +238,19 @@ tr:hover {
     background: #e53e3e;
 }
 
-.loading {
-    text-align: center;
-    padding: 40px;
-    color: #718096;
-}
-
-.no-data {
-    text-align: center;
-    padding: 40px;
-    color: #718096;
-}
-
-.nav-button {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.3s, box-shadow 0.3s;
-    text-decoration: none;
-    display: inline-block;
-}
-
-.nav-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
+/* Dashboard Responsive */
 @media (max-width: 1024px) {
-    .header-content {
-        flex-direction: column;
-        gap: 20px;
-    }
-    
     .video-container {
         max-width: 100%;
     }
 }
 
 @media (max-width: 768px) {
-    .controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .control-group {
-        justify-content: space-between;
-    }
-    
-    table {
-        font-size: 0.9em;
-    }
-    
     .plate-image:hover {
         transform: scale(1.5);
     }
     
-    .video-stream {
-        height: 200px;
-    }
-    
-    .video-error {
+    .video-stream, .video-error {
         height: 200px;
     }
 }

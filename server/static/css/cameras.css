@@ -1,69 +1,17 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/* ==============================================
+   ALPR Cameras - Specific Styles
+   ============================================== */
 
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    padding: 20px;
-}
+@import url('base.css');
 
-.container {
-    max-width: 1400px;
-    margin: 0 auto;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 15px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-}
-
-.header {
-    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-    color: white;
-    padding: 30px;
-    text-align: center;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.nav-buttons {
-    display: flex;
-    gap: 15px;
-}
-
-.header h1 {
-    font-size: 2.5em;
-    margin: 0;
-}
-
-.nav-button {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-decoration: none;
-    display: inline-block;
-}
-
-.nav-button:hover {
-    background: rgba(255, 255, 255, 0.3);
-    border-color: rgba(255, 255, 255, 0.5);
-    transform: translateY(-2px);
-}
-
+/* Camera Grid Layout */
 .camera-grid {
     display: grid;
     gap: 20px;
     padding: 30px;
 }
+
+/* Camera Cell - preserving the existing simple grid structure */
 
 .camera-cell {
     position: relative;
@@ -97,6 +45,7 @@ body {
     padding: 20px;
 }
 
+/* Camera Info Overlay */
 .camera-info {
     position: absolute;
     bottom: 10px;
@@ -109,6 +58,7 @@ body {
     font-weight: 500;
 }
 
+/* Camera Status Indicator */
 .camera-status {
     position: absolute;
     top: 10px;
@@ -124,10 +74,12 @@ body {
     background: #38a169;
 }
 
+/* Camera Type Metadata */
 .camera-type {
     display: none; /* Hidden element to store camera metadata */
 }
 
+/* Grid Info Banner */
 .grid-info {
     background: #f7fafc;
     padding: 15px 30px;
@@ -136,6 +88,7 @@ body {
     color: #4a5568;
 }
 
+/* Responsive Design - Camera Specific */
 @media (max-width: 768px) {
     .camera-grid {
         grid-template-columns: 1fr !important;
