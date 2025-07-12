@@ -8,34 +8,18 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
+        <!-- Header Section -->
+        <header class="header">
             <div class="header-content">
                 <div class="header-text">
                     <h1>🚗 ALPR Dashboard</h1>
                     <p>Real-time License Plate Recognition System</p>
                 </div>
-                
-                <div class="video-container">
-                    <img id="video-stream" class="video-stream" style="display: none;" alt="Camera Feed">
-                    <div id="video-error" class="video-error">
-                        <div>
-                            📹 Loading camera feed...<br>
-                            <small>Connecting to camera</small>
-                        </div>
-                    </div>
-                    
-                    <div class="video-controls">
-                        <button id="prev-camera" class="video-nav" onclick="switchCamera(-1)">‹</button>
-                        <button id="next-camera" class="video-nav" onclick="switchCamera(1)">›</button>
-                    </div>
-                    
-                    <div id="video-info" class="video-info">Camera 1 of 1</div>
-                    <div id="camera-status" class="camera-status"></div>
-                </div>
             </div>
-        </div>
+        </header>
         
-        <div class="stats">
+        <!-- Statistics Cards -->
+        <section class="stats" aria-label="Dashboard Statistics">
             <div class="stat-card">
                 <div class="stat-number" id="total-plates">-</div>
                 <div class="stat-label">Unique Plates (Total Scans)</div>
@@ -52,69 +36,102 @@
                 <div class="stat-number" id="unique-states">-</div>
                 <div class="stat-label">Unique States</div>
             </div>
-        </div>
+        </section>
         
-        <div class="controls">
+        <!-- Controls Panel -->
+        <section class="controls" aria-label="Data Controls">
             <div class="control-group">
                 <label for="sort-by">Sort by:</label>
-                <select id="sort-by">
+                <select id="sort-by" aria-label="Sort data by">
                     <option value="timestamp">Timestamp</option>
                     <option value="license_plate">Plate Number</option>
                     <option value="state_region">Region</option>
                     <option value="confidence">Confidence</option>
                 </select>
             </div>
+            
             <div class="control-group">
                 <label for="filter-region">Filter Region:</label>
-                <select id="filter-region">
+                <select id="filter-region" aria-label="Filter by region">
                     <option value="">All Regions</option>
                 </select>
             </div>
+            
             <div class="control-group">
                 <label for="search">Search:</label>
-                <input type="text" id="search" placeholder="Search plates...">
+                <input type="text" 
+                       id="search" 
+                       placeholder="Search plates..." 
+                       aria-label="Search license plates">
             </div>
+            
             <div class="control-group">
                 <label>
-                    <input type="checkbox" id="auto-refresh" checked> Auto-refresh
+                    <input type="checkbox" id="auto-refresh" checked> 
+                    Auto-refresh
                 </label>
             </div>
+            
+            <!-- Navigation Links -->
             <div class="control-group">
-                <a href="/cameras" class="nav-button">📹 View Cameras</a>
+                <a href="/vin" class="nav-button" aria-label="VIN lookup page">
+                    🔍 VIN Lookup
+                </a>
             </div>
-            <div class="control-group">
-                <a href="/vin" class="nav-button">🔍 VIN Lookup</a>
-            </div>
-        </div>
+        </section>
         
-        <div class="table-container">
+        <!-- License Plate Data Table -->
+        <section class="table-container" aria-label="License Plate Data">
             <div id="loading" class="loading">Loading data...</div>
-            <table id="plates-table" style="display: none;">
+            
+            <table id="plates-table" style="display: none;" role="table" aria-label="License plate readings">
                 <thead>
                     <tr>
-                        <th class="sortable" data-column="license_plate">Plate #</th>
-                        <th class="sortable" data-column="state_region">Region</th>
-                        <th class="sortable" data-column="confidence">Confidence</th>
-                        <th class="sortable" data-column="timestamp">Timestamp</th>
-                        <th class="sortable" data-column="vehicle_info.make">Make</th>
-                        <th class="sortable" data-column="camera_id">Camera ID</th>
-                        <th>Image</th>
+                        <th class="sortable" 
+                            data-column="license_plate" 
+                            role="columnheader" 
+                            tabindex="0"
+                            aria-sort="none">Plate #</th>
+                        <th class="sortable" 
+                            data-column="state_region" 
+                            role="columnheader" 
+                            tabindex="0"
+                            aria-sort="none">Region</th>
+                        <th class="sortable" 
+                            data-column="confidence" 
+                            role="columnheader" 
+                            tabindex="0"
+                            aria-sort="none">Confidence</th>
+                        <th class="sortable" 
+                            data-column="timestamp" 
+                            role="columnheader" 
+                            tabindex="0"
+                            aria-sort="none">Timestamp</th>
+                        <th class="sortable" 
+                            data-column="vehicle_info.make" 
+                            role="columnheader" 
+                            tabindex="0"
+                            aria-sort="none">Make</th>
+                        <th class="sortable" 
+                            data-column="camera_id" 
+                            role="columnheader" 
+                            tabindex="0"
+                            aria-sort="none">Camera ID</th>
+                        <th role="columnheader">Image</th>
                     </tr>
                 </thead>
-                <tbody id="plates-tbody">
+                <tbody id="plates-tbody" role="rowgroup">
+                    <!-- Data rows populated by JavaScript -->
                 </tbody>
             </table>
+            
             <div id="no-data" class="no-data" style="display: none;">
                 No license plate data available
             </div>
-        </div>
+        </section>
     </div>
 
-    <script>
-        // Pass camera data from server to JavaScript
-        const cameraIPs = {{ camera_ips|safe }};
-        const cameraData = {{ camera_data|safe }};
-    </script>
+    <!-- JavaScript Scripts -->
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

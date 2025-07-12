@@ -22,47 +22,6 @@ parsed_output_file = config.get('parsed_output_file', 'alpr_parsed_data.jsonl')
 event_log_file = config.get('event_log_file', 'event.log')
 plates_dir = config.get('plates_dir', 'plates')
 
-# Camera configuration - support both new and legacy formats
-HTTP_CAMERAS = config.get('http_cameras', [])
-RTSP_CAMERAS_RAW = config.get('rtsp_cameras', [])
-LEGACY_CAMERAS = config.get('camera_ips', [])
-
-# Process RTSP cameras to handle both simple IPs and credential objects
-RTSP_CAMERAS = []
-for camera in RTSP_CAMERAS_RAW:
-    if isinstance(camera, str):
-        # Simple IP format
-        RTSP_CAMERAS.append({
-            'ip': camera,
-            'username': None,
-            'password': None,
-            'rtsp_url': f"rtsp://{camera}:554/"
-        })
-    elif isinstance(camera, dict) and 'ip' in camera:
-        # Object format with credentials
-        ip = camera['ip']
-        username = camera.get('username')
-        password = camera.get('password')
-        
-        if username and password:
-            rtsp_url = f"rtsp://{username}:{password}@{ip}:554/"
-        else:
-            rtsp_url = f"rtsp://{ip}:554/"
-        
-        RTSP_CAMERAS.append({
-            'ip': ip,
-            'username': username,
-            'password': password,
-            'rtsp_url': rtsp_url
-        })
-
-# If using legacy format, treat as HTTP cameras
-if LEGACY_CAMERAS and not HTTP_CAMERAS:
-    HTTP_CAMERAS = LEGACY_CAMERAS
-
-# Create combined camera list for backward compatibility
-CAMERA_IPS = HTTP_CAMERAS  # For backward compatibility with existing code
-
 # Create plates directory if it doesn't exist
 if not os.path.exists(plates_dir):
     os.makedirs(plates_dir)
@@ -230,15 +189,7 @@ def receive_alpr_data():
 @app.route('/dashboard')
 def dashboard():
     """Display ALPR dashboard"""
-    # Pass camera data to the template
-    camera_data = {
-        'http_cameras': HTTP_CAMERAS,
-        'rtsp_cameras': RTSP_CAMERAS,
-        'legacy_cameras': CAMERA_IPS  # For backward compatibility
-    }
-    return render_template('dashboard.html', 
-                          camera_ips=json.dumps(CAMERA_IPS),  # Keep for backward compatibility
-                          camera_data=json.dumps(camera_data))
+    return render_template('dashboard.html')
 
 @app.route('/api/plates')
 def get_plates():
@@ -322,32 +273,6 @@ def get_stats():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@app.route('/cameras')
-def cameras_grid():
-    """Display all cameras in a grid view"""
-    
-    # Calculate grid size (nearest square) based on total cameras
-    total_cameras = len(HTTP_CAMERAS) + len(RTSP_CAMERAS)
-    if total_cameras == 0:
-        grid_size = 1
-    else:
-        grid_size = math.ceil(math.sqrt(total_cameras))
-    
-    # Pass camera data to the template
-    camera_data = {
-        'http_cameras': HTTP_CAMERAS,
-        'rtsp_cameras': RTSP_CAMERAS,
-        'legacy_cameras': CAMERA_IPS  # For backward compatibility
-    }
-    
-    return render_template('cameras.html', 
-                          camera_ips=json.dumps(CAMERA_IPS),  # Keep for backward compatibility
-                          camera_data=json.dumps(camera_data),
-                          grid_size=grid_size,
-                          num_cameras=total_cameras,
-                          num_http=len(HTTP_CAMERAS),
-                          num_rtsp=len(RTSP_CAMERAS))
 
 @app.route('/api/vin_lookup', methods=['POST'])
 def vin_lookup():
