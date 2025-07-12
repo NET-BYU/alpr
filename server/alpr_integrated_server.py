@@ -1,39 +1,48 @@
+"""
+ALPR Integrated Server
+A Flask-based server for processing Automatic License Plate Recognition (ALPR) data,
+providing real-time dashboard visualization and VIN lookup functionality.
+"""
+
 from flask import Flask, request, jsonify, render_template, send_from_directory
 import json
-from datetime import datetime
 import os
 import base64
 import yaml
-import math
 import requests
-from collections import defaultdict
-import threading
 import time
+from datetime import datetime
+from collections import defaultdict
 
 app = Flask(__name__)
 
-# Output files
-# Load configuration from config.yaml
+# Configuration Loading
+# Configuration Loading
 with open('config.yaml', 'r') as config_file:
     config = yaml.safe_load(config_file)['integrated_server']
 
-raw_output_file = config.get('raw_output_file', 'alpr_raw_data.jsonl')
-parsed_output_file = config.get('parsed_output_file', 'alpr_parsed_data.jsonl')
-event_log_file = config.get('event_log_file', 'event.log')
-plates_dir = config.get('plates_dir', 'plates')
-
-# Create plates directory if it doesn't exist
-if not os.path.exists(plates_dir):
-    os.makedirs(plates_dir)
-
-# VIN lookup configuration
+# File paths from configuration
+RAW_OUTPUT_FILE = config.get('raw_output_file', 'alpr_raw_data.jsonl')
+PARSED_OUTPUT_FILE = config.get('parsed_output_file', 'alpr_parsed_data.jsonl')
+EVENT_LOG_FILE = config.get('event_log_file', 'event.log')
+PLATES_DIR = config.get('plates_dir', 'plates')
 VIN_RESULTS_FILE = config.get('vin_results_file', 'alpr_vin_lookup.json')
-VIN_API_KEY = 'ehifeCWYw8awg2G'  # Move this to config.yaml in production
+
+# API Configuration
+VIN_API_KEY = 'ehifeCWYw8awg2G'  # TODO: Move to config.yaml for production
+
+# Initialize directories
+if not os.path.exists(PLATES_DIR):
+    os.makedirs(PLATES_DIR)
+
+# =====================================================================================
+# UTILITY FUNCTIONS
+# =====================================================================================
 
 def log_event(message):
-    """Log events to the event log file"""
+    """Log events to the event log file with timestamp"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(event_log_file, 'a') as f:
+    with open(EVENT_LOG_FILE, 'a') as f:
         f.write(f"[{timestamp}] {message}\n")
     print(f"[{timestamp}] {message}")
 
@@ -52,7 +61,7 @@ def save_plate_image(data):
         region = best_plate.get('region', 'unknown')
         timestamp = data.get('timestamp', datetime.now().isoformat())
         
-        # Create a safe filename
+        # Create safe filename components
         safe_plate = "".join(c for c in plate_number if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_region = region.replace('-', '_')
         
@@ -64,11 +73,10 @@ def save_plate_image(data):
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         filename = f"{safe_plate}_{safe_region}_{time_str}_{confidence:.1f}.jpg"
-        filepath = os.path.join(plates_dir, filename)
+        filepath = os.path.join(PLATES_DIR, filename)
         
-        # Decode base64 and save as JPEG
+        # Decode base64 and save JPEG
         jpeg_data = base64.b64decode(plate_crop_jpeg)
-        
         with open(filepath, 'wb') as img_file:
             img_file.write(jpeg_data)
         
@@ -81,8 +89,8 @@ def save_plate_image(data):
 def parse_license_plate_data(data):
     """Parse ALPR group data and extract useful license plate information"""
     try:
-        # Extract useful information
-        parsed_data = {
+        vehicle = data.get('vehicle', {})
+        return {
             'timestamp': data.get('timestamp'),
             'license_plate': data.get('best_plate', {}).get('plate'),
             'confidence': data.get('best_plate', {}).get('confidence'),
@@ -94,52 +102,49 @@ def parse_license_plate_data(data):
             'travel_direction': data.get('travel_direction'),
             'is_parked': data.get('is_parked'),
             'vehicle_info': {
-                'color': data.get('vehicle', {}).get('color', [{}])[0].get('name') if data.get('vehicle', {}).get('color') else None,
-                'color_confidence': data.get('vehicle', {}).get('color', [{}])[0].get('confidence') if data.get('vehicle', {}).get('color') else None,
-                'make': data.get('vehicle', {}).get('make', [{}])[0].get('name') if data.get('vehicle', {}).get('make') else None,
-                'make_confidence': data.get('vehicle', {}).get('make', [{}])[0].get('confidence') if data.get('vehicle', {}).get('make') else None,
-                'body_type': data.get('vehicle', {}).get('body_type', [{}])[0].get('name') if data.get('vehicle', {}).get('body_type') else None,
-                'year_range': data.get('vehicle', {}).get('year', [{}])[0].get('name') if data.get('vehicle', {}).get('year') else None
+                'color': vehicle.get('color', [{}])[0].get('name') if vehicle.get('color') else None,
+                'color_confidence': vehicle.get('color', [{}])[0].get('confidence') if vehicle.get('color') else None,
+                'make': vehicle.get('make', [{}])[0].get('name') if vehicle.get('make') else None,
+                'make_confidence': vehicle.get('make', [{}])[0].get('confidence') if vehicle.get('make') else None,
+                'body_type': vehicle.get('body_type', [{}])[0].get('name') if vehicle.get('body_type') else None,
+                'year_range': vehicle.get('year', [{}])[0].get('name') if vehicle.get('year') else None
             },
             'uuid': data.get('best_uuid')
         }
-        return parsed_data
     except Exception as e:
         log_event(f"Error parsing license plate data: {e}")
         return None
 
+# =====================================================================================
+# API ROUTES - ALPR Data Processing
+# =====================================================================================
+
 @app.route('/alpr', methods=['POST'])
 def receive_alpr_data():
+    """Receive and process ALPR data from openALPR"""
     try:
-        # Get JSON data from the POST request
         json_data = request.get_json()
-        
         if json_data is None:
             return jsonify({'error': 'No JSON data received'}), 400
         
-        # Add timestamp to the data if not present
+        # Add timestamp if not present
         if 'timestamp' not in json_data:
             json_data['timestamp'] = datetime.now().isoformat()
         
         # Save raw data
-        with open(raw_output_file, 'a') as f:
+        with open(RAW_OUTPUT_FILE, 'a') as f:
             f.write(json.dumps(json_data) + '\n')
         
         # Process based on data type
         data_type = json_data.get('data_type', 'unknown')
         
         if data_type == 'heartbeat':
-            # Extract heartbeat stats
+            # Process heartbeat data
             video_streams = json_data.get('video_streams', [])
             total_plate_reads = sum(stream.get('total_plate_reads', 0) for stream in video_streams)
             
-            # Find the most recent plate read timestamp
-            last_plate_read = 0
-            for stream in video_streams:
-                if stream.get('last_plate_read', 0) > last_plate_read:
-                    last_plate_read = stream.get('last_plate_read', 0)
-            
-            # Convert epoch timestamp to readable format
+            # Find most recent plate read timestamp
+            last_plate_read = max((stream.get('last_plate_read', 0) for stream in video_streams), default=0)
             last_plate_time = "Never"
             if last_plate_read > 0:
                 try:
@@ -147,44 +152,43 @@ def receive_alpr_data():
                 except:
                     last_plate_time = "Unknown"
             
-            log_event(f"heartbeat - Total plates read: {total_plate_reads}, Last plate read: {last_plate_time}")
+            log_event(f"heartbeat - Total plates: {total_plate_reads}, Last read: {last_plate_time}")
             
         elif data_type == 'alpr_group':
-            # Parse license plate data
+            # Process license plate data
             parsed_data = parse_license_plate_data(json_data)
             
             if parsed_data and parsed_data.get('license_plate'):
                 # Save plate image
                 image_filename = save_plate_image(json_data)
-                
-                # Add image filename to parsed data
                 if image_filename:
                     parsed_data['image_filename'] = image_filename
                 
                 # Save parsed data
-                with open(parsed_output_file, 'a') as f:
+                with open(PARSED_OUTPUT_FILE, 'a') as f:
                     f.write(json.dumps(parsed_data) + '\n')
                 
-                # Log license plate event
+                # Log plate detection
                 plate = parsed_data['license_plate']
                 state = parsed_data['state_region'] or 'Unknown'
-                timestamp = parsed_data['timestamp'] or 'Unknown'
                 confidence = parsed_data.get('confidence', 0)
-                
                 image_msg = f" (Image: {image_filename})" if image_filename else ""
-                log_event(f"LICENSE PLATE - {plate} ({state}) at {timestamp} - {confidence:.1f}% confidence{image_msg}")
+                
+                log_event(f"LICENSE PLATE - {plate} ({state}) - {confidence:.1f}% confidence{image_msg}")
             else:
                 log_event("alpr_group received but no valid license plate data found")
         else:
             log_event(f"Received data type: {data_type}")
         
-        # Return success response
         return jsonify({'status': 'success', 'message': 'Data received and processed'}), 200
         
     except Exception as e:
-        error_msg = f"Error processing request: {e}"
-        log_event(error_msg)
+        log_event(f"Error processing request: {e}")
         return jsonify({'error': str(e)}), 500
+
+# =====================================================================================
+# WEB ROUTES - Dashboard and UI
+# =====================================================================================
 
 @app.route('/dashboard')
 def dashboard():
@@ -196,12 +200,11 @@ def get_plates():
     """API endpoint to get all plate data"""
     plates = []
     try:
-        if os.path.exists(parsed_output_file):
-            with open(parsed_output_file, 'r') as f:
+        if os.path.exists(PARSED_OUTPUT_FILE):
+            with open(PARSED_OUTPUT_FILE, 'r') as f:
                 for line in f:
                     try:
-                        plate_data = json.loads(line.strip())
-                        plates.append(plate_data)
+                        plates.append(json.loads(line.strip()))
                     except json.JSONDecodeError:
                         continue
     except Exception as e:
@@ -214,15 +217,12 @@ def get_recent_events():
     """API endpoint to get recent events from log"""
     events = []
     try:
-        if os.path.exists(event_log_file):
-            with open(event_log_file, 'r') as f:
+        if os.path.exists(EVENT_LOG_FILE):
+            with open(EVENT_LOG_FILE, 'r') as f:
                 lines = f.readlines()
                 # Get last 10 events
                 recent_lines = lines[-10:] if len(lines) > 10 else lines
-                for line in recent_lines:
-                    line = line.strip()
-                    if line:
-                        events.append(line)
+                events = [line.strip() for line in recent_lines if line.strip()]
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
@@ -231,160 +231,60 @@ def get_recent_events():
 @app.route('/plates/<filename>')
 def serve_plate_image(filename):
     """Serve plate images"""
-    from flask import send_from_directory
-    return send_from_directory(plates_dir, filename)
+    return send_from_directory(PLATES_DIR, filename)
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    """Health check endpoint"""
     return jsonify({'status': 'healthy'}), 200
 
 @app.route('/stats', methods=['GET'])
 def get_stats():
     """Get basic statistics about processed data"""
     try:
-        # Count lines in files
+        # Count records in files
         raw_count = 0
         parsed_count = 0
+        image_count = 0
         
-        if os.path.exists(raw_output_file):
-            with open(raw_output_file, 'r') as f:
+        if os.path.exists(RAW_OUTPUT_FILE):
+            with open(RAW_OUTPUT_FILE, 'r') as f:
                 raw_count = sum(1 for line in f)
         
-        if os.path.exists(parsed_output_file):
-            with open(parsed_output_file, 'r') as f:
+        if os.path.exists(PARSED_OUTPUT_FILE):
+            with open(PARSED_OUTPUT_FILE, 'r') as f:
                 parsed_count = sum(1 for line in f)
         
-        # Count plate images
-        image_count = 0
-        if os.path.exists(plates_dir):
-            image_count = len([f for f in os.listdir(plates_dir) if f.endswith('.jpg')])
+        if os.path.exists(PLATES_DIR):
+            image_count = len([f for f in os.listdir(PLATES_DIR) if f.endswith('.jpg')])
         
         return jsonify({
             'raw_records': raw_count,
             'parsed_plates': parsed_count,
             'plate_images': image_count,
             'files': {
-                'raw_data': raw_output_file,
-                'parsed_data': parsed_output_file,
-                'event_log': event_log_file,
-                'plates_directory': plates_dir
+                'raw_data': RAW_OUTPUT_FILE,
+                'parsed_data': PARSED_OUTPUT_FILE,
+                'event_log': EVENT_LOG_FILE,
+                'plates_directory': PLATES_DIR
             }
         }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/vin_lookup', methods=['POST'])
-def vin_lookup():
-    """API endpoint to lookup VIN information"""
-    try:
-        # Get JSON data from the POST request
-        json_data = request.get_json()
-        
-        if json_data is None or 'vin' not in json_data:
-            return jsonify({'error': 'No VIN provided'}), 400
-        
-        vin = json_data['vin']
-        
-        # Check if already looked up
-        if os.path.exists(VIN_RESULTS_FILE):
-            with open(VIN_RESULTS_FILE, 'r') as f:
-                results = json.load(f)
-                if vin in results:
-                    # Return cached result
-                    return jsonify({'status': 'success', 'data': results[vin]}), 200
-        
-        # Call external VIN lookup service (example: vinapi.io)
-        response = requests.get(f'https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/{vin}?format=json')
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Extract relevant information
-            if 'Results' in data and len(data['Results']) > 0:
-                vehicle_data = data['Results'][0]
-                
-                # Save to results file
-                if os.path.exists(VIN_RESULTS_FILE):
-                    with open(VIN_RESULTS_FILE, 'r') as f:
-                        all_results = json.load(f)
-                else:
-                    all_results = {}
-                
-                all_results[vin] = vehicle_data
-                
-                with open(VIN_RESULTS_FILE, 'w') as f:
-                    json.dump(all_results, f, indent=4)
-                
-                return jsonify({'status': 'success', 'data': vehicle_data}), 200
-            else:
-                return jsonify({'status': 'error', 'message': 'No data found for this VIN'}), 404
-        else:
-            return jsonify({'status': 'error', 'message': 'Error calling VIN lookup service'}), 500
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-def get_unique_plates_from_data():
-    """Get unique license plates from parsed ALPR data"""
-    unique_plates = defaultdict(lambda: {'state': None, 'confidence': 0, 'camera_id': None, 'timestamp': None, 'image_filename': None})
-    
-    try:
-        if os.path.exists(parsed_output_file):
-            with open(parsed_output_file, 'r') as f:
-                for line in f:
-                    try:
-                        data = json.loads(line.strip())
-                        license_plate = data.get('license_plate')
-                        state_region = data.get('state_region')
-                        confidence = data.get('confidence', 0)
-                        camera_id = data.get('camera_id')
-                        timestamp = data.get('timestamp')
-                        image_filename = data.get('image_filename')
-                        
-                        if license_plate and state_region:
-                            # Extract state code from region (e.g., 'us-tx' -> 'TX')
-                            state_code = state_region.split('-')[-1].upper() if '-' in state_region else state_region.upper()
-                            
-                            # Keep the entry with highest confidence for each plate
-                            if confidence > unique_plates[license_plate]['confidence']:
-                                unique_plates[license_plate] = {
-                                    'state': state_code,
-                                    'confidence': confidence,
-                                    'camera_id': camera_id,
-                                    'timestamp': timestamp,
-                                    'original_region': state_region,
-                                    'image_filename': image_filename
-                                }
-                                
-                    except json.JSONDecodeError:
-                        continue
-    except Exception as e:
-        log_event(f"Error loading plates data: {e}")
-    
-    # Convert to list format
-    plates_list = []
-    for plate, info in unique_plates.items():
-        plates_list.append({
-            'license_plate': plate,
-            'state': info['state'],
-            'confidence': info['confidence'],
-            'camera_id': info['camera_id'],
-            'timestamp': info['timestamp'],
-            'original_region': info['original_region'],
-            'image_filename': info['image_filename']
-        })
-    
-    return plates_list
+# =====================================================================================
+# VIN LOOKUP FUNCTIONALITY
+# =====================================================================================
 
 def load_existing_vin_results():
-    """Load existing VIN lookup results to avoid duplicate API calls"""
+    """Load existing VIN lookup results"""
     try:
         if os.path.exists(VIN_RESULTS_FILE):
             with open(VIN_RESULTS_FILE, 'r') as f:
                 return json.load(f)
     except Exception as e:
-        log_event(f"Error loading existing VIN results: {e}")
+        log_event(f"Error loading VIN results: {e}")
     return {}
 
 def save_vin_results(results):
@@ -400,10 +300,7 @@ def save_vin_results(results):
 def lookup_vin_for_plate(license_plate, state):
     """Perform VIN lookup for a single plate"""
     url = 'https://platetovin.com/api/convert'
-    payload = {
-        "state": state,
-        "plate": license_plate
-    }
+    payload = {"state": state, "plate": license_plate}
     headers = {
         'Authorization': VIN_API_KEY,
         'Content-Type': 'application/json',
@@ -417,13 +314,62 @@ def lookup_vin_for_plate(license_plate, state):
     except requests.exceptions.RequestException as e:
         return {"error": str(e)}
 
+def get_unique_plates_from_data():
+    """Get unique license plates from parsed ALPR data"""
+    unique_plates = defaultdict(lambda: {
+        'state': None, 'confidence': 0, 'camera_id': None, 
+        'timestamp': None, 'image_filename': None
+    })
+    
+    try:
+        if os.path.exists(PARSED_OUTPUT_FILE):
+            with open(PARSED_OUTPUT_FILE, 'r') as f:
+                for line in f:
+                    try:
+                        data = json.loads(line.strip())
+                        license_plate = data.get('license_plate')
+                        state_region = data.get('state_region')
+                        confidence = data.get('confidence', 0)
+                        
+                        if license_plate and state_region:
+                            # Extract state code from region
+                            state_code = state_region.split('-')[-1].upper() if '-' in state_region else state_region.upper()
+                            
+                            # Keep entry with highest confidence for each plate
+                            if confidence > unique_plates[license_plate]['confidence']:
+                                unique_plates[license_plate] = {
+                                    'state': state_code,
+                                    'confidence': confidence,
+                                    'camera_id': data.get('camera_id'),
+                                    'timestamp': data.get('timestamp'),
+                                    'original_region': state_region,
+                                    'image_filename': data.get('image_filename')
+                                }
+                                
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        log_event(f"Error loading plates data: {e}")
+    
+    # Convert to list format
+    return [{
+        'license_plate': plate,
+        'state': info['state'],
+        'confidence': info['confidence'],
+        'camera_id': info['camera_id'],
+        'timestamp': info['timestamp'],
+        'original_region': info['original_region'],
+        'image_filename': info['image_filename']
+    } for plate, info in unique_plates.items()]
+
+# =====================================================================================
+# VIN LOOKUP API ROUTES
+# =====================================================================================
+
 @app.route('/vin')
 def vin_page():
     """Display VIN lookup page"""
-    # Get unique plates
     plates = get_unique_plates_from_data()
-    
-    # Load existing VIN results
     existing_results = load_existing_vin_results()
     
     # Mark plates that already have VIN data
@@ -432,19 +378,17 @@ def vin_page():
         original_state = plate['state']
         plate_key = f"{license_plate}_{original_state}"
         
-        # First check with original state
+        # Check if VIN data exists
         if plate_key in existing_results:
             plate['has_vin_data'] = True
             plate['vin_data'] = existing_results[plate_key]
         else:
-            # Check if this plate exists with any other state (due to state overrides)
+            # Check if plate exists with different state
             plate['has_vin_data'] = False
             for vin_key, vin_result in existing_results.items():
                 if vin_key.startswith(f"{license_plate}_"):
-                    # Found this plate with a different state
                     plate['has_vin_data'] = True
                     plate['vin_data'] = vin_result
-                    # Update the state to match what was actually used for VIN lookup
                     plate['state'] = vin_key.split('_', 1)[1]
                     break
     
@@ -463,9 +407,7 @@ def api_vin_lookup():
         if not selected_plates:
             return jsonify({'error': 'No plates selected'}), 400
         
-        # Load existing results
         existing_results = load_existing_vin_results()
-        
         results = []
         new_lookups = 0
         
@@ -474,7 +416,7 @@ def api_vin_lookup():
             state = plate_info['state']
             plate_key = f"{license_plate}_{state}"
             
-            # Check if we already have results for this plate
+            # Check existing results
             if plate_key in existing_results:
                 results.append({
                     'license_plate': license_plate,
@@ -488,7 +430,7 @@ def api_vin_lookup():
             log_event(f"VIN Lookup: {license_plate} ({state})")
             vin_data = lookup_vin_for_plate(license_plate, state)
             
-            # Add metadata
+            # Create result entry
             result_entry = {
                 'license_plate': license_plate,
                 'state': state,
@@ -500,9 +442,7 @@ def api_vin_lookup():
                 'lookup_timestamp': datetime.now().isoformat()
             }
             
-            # Save to existing results
             existing_results[plate_key] = result_entry
-            
             results.append({
                 'license_plate': license_plate,
                 'state': state,
@@ -511,13 +451,11 @@ def api_vin_lookup():
             })
             
             new_lookups += 1
-            
-            # Rate limiting
-            time.sleep(0.5)
+            time.sleep(0.5)  # Rate limiting
         
-        # Save updated results
+        # Save results
         if save_vin_results(existing_results):
-            log_event(f"VIN Lookup completed: {new_lookups} new lookups, {len(results)} total results")
+            log_event(f"VIN Lookup completed: {new_lookups} new, {len(results)} total")
             return jsonify({
                 'status': 'success',
                 'results': results,
@@ -535,8 +473,7 @@ def api_vin_lookup():
 def api_vin_results():
     """API endpoint to get all VIN lookup results"""
     try:
-        results = load_existing_vin_results()
-        return jsonify(results)
+        return jsonify(load_existing_vin_results())
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -548,22 +485,15 @@ def api_get_vin_data():
         state = request.args.get('state')
         
         if not license_plate or not state:
-            return jsonify({'error': 'Both plate and state parameters are required'}), 400
+            return jsonify({'error': 'Both plate and state parameters required'}), 400
         
-        # Load existing results
         existing_results = load_existing_vin_results()
         plate_key = f"{license_plate}_{state}"
         
         if plate_key in existing_results:
-            return jsonify({
-                'status': 'success',
-                'vin_data': existing_results[plate_key]
-            })
+            return jsonify({'status': 'success', 'vin_data': existing_results[plate_key]})
         else:
-            return jsonify({
-                'status': 'error',
-                'error': 'No VIN data found for this plate'
-            }), 404
+            return jsonify({'status': 'error', 'error': 'No VIN data found'}), 404
             
     except Exception as e:
         log_event(f"Error fetching VIN data: {e}")
@@ -577,11 +507,9 @@ def api_clear_vin_data():
         plates_to_clear = data.get('plates', [])
         
         if not plates_to_clear:
-            return jsonify({'error': 'No plates specified for clearing'}), 400
+            return jsonify({'error': 'No plates specified'}), 400
         
-        # Load existing results
         existing_results = load_existing_vin_results()
-        
         cleared_count = 0
         not_found_count = 0
         
@@ -593,18 +521,17 @@ def api_clear_vin_data():
             if plate_key in existing_results:
                 del existing_results[plate_key]
                 cleared_count += 1
-                log_event(f"Cleared VIN data for: {license_plate} ({state})")
+                log_event(f"Cleared VIN data: {license_plate} ({state})")
             else:
                 not_found_count += 1
         
-        # Save updated results
         if save_vin_results(existing_results):
-            log_event(f"VIN data cleared: {cleared_count} plates cleared, {not_found_count} not found")
+            log_event(f"VIN data cleared: {cleared_count} plates")
             return jsonify({
                 'status': 'success',
                 'cleared_count': cleared_count,
                 'not_found_count': not_found_count,
-                'message': f'Successfully cleared VIN data for {cleared_count} plates'
+                'message': f'Cleared VIN data for {cleared_count} plates'
             })
         else:
             return jsonify({'error': 'Failed to save updated results'}), 500
@@ -617,13 +544,9 @@ def api_clear_vin_data():
 def api_clear_all_vin_data():
     """API endpoint to clear all VIN data"""
     try:
-        # Create empty results file
         if save_vin_results({}):
             log_event("All VIN data cleared")
-            return jsonify({
-                'status': 'success',
-                'message': 'All VIN data has been cleared'
-            })
+            return jsonify({'status': 'success', 'message': 'All VIN data cleared'})
         else:
             return jsonify({'error': 'Failed to clear VIN data'}), 500
             
@@ -631,14 +554,18 @@ def api_clear_all_vin_data():
         log_event(f"Error clearing all VIN data: {e}")
         return jsonify({'error': str(e)}), 500
 
+# =====================================================================================
+# APPLICATION STARTUP
+# =====================================================================================
+
 if __name__ == '__main__':
-    # Initialize log file
+    # Initialize application
     log_event("ALPR Integrated Server starting up...")
-    log_event(f"Raw data will be saved to: {os.path.abspath(raw_output_file)}")
-    log_event(f"Parsed data will be saved to: {os.path.abspath(parsed_output_file)}")
-    log_event(f"Event log: {os.path.abspath(event_log_file)}")
-    log_event(f"Plate images will be saved to: {os.path.abspath(plates_dir)}")
-    log_event(f"Configure openALPR to POST to: http://localhost:5000/alpr")
+    log_event(f"Raw data: {os.path.abspath(RAW_OUTPUT_FILE)}")
+    log_event(f"Parsed data: {os.path.abspath(PARSED_OUTPUT_FILE)}")
+    log_event(f"Event log: {os.path.abspath(EVENT_LOG_FILE)}")
+    log_event(f"Plate images: {os.path.abspath(PLATES_DIR)}")
+    log_event("Configure openALPR to POST to: http://localhost:5000/alpr")
     log_event("Server ready to receive data...")
     
     app.run(host='0.0.0.0', port=5000, debug=True)
