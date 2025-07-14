@@ -1,7 +1,10 @@
 param(
     [Parameter(Mandatory=$true)]
     [ValidateSet("setup", "run", "clean")]
-    [string]$Action
+    [string]$Action,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$Vin
 )
 
 function Write-Info {
@@ -112,7 +115,15 @@ function Install-Requirements {
 }
 
 function Start-Server {
+    param([bool]$EnableVin)
+    
     Write-Info "Starting ALPR Integrated Server..."
+    
+    if ($EnableVin) {
+        Write-Info "VIN lookup functionality: ENABLED"
+    } else {
+        Write-Info "VIN lookup functionality: DISABLED"
+    }
     
     if (-not (Test-Path "alpr_integrated_server.py")) {
         Write-Error "alpr_integrated_server.py not found in current directory"
@@ -123,8 +134,17 @@ function Start-Server {
     try {
         Write-Info "Server will be available at: http://localhost:5000"
         Write-Info "Dashboard available at: http://localhost:5000/dashboard"
+        if ($EnableVin) {
+            Write-Info "VIN lookup available at: http://localhost:5000/vin"
+        }
         Write-Info "Press Ctrl+C to stop the server"
         Write-Info ""
+        
+        if ($EnableVin) {
+            $env:ENABLE_VIN = "true"
+        } else {
+            $env:ENABLE_VIN = "false"
+        }
         
         python alpr_integrated_server.py
     }
@@ -154,10 +174,13 @@ function Setup-Environment {
     Write-Info ""
     Write-Info "Setup completed successfully!"
     Write-Info "To run the server, use: .\server.ps1 run"
+    # Write-Info "To run with VIN lookup, use: .\server.ps1 run --vin"
     Write-Info ""
 }
 
 function Run-Server {
+    param([bool]$EnableVin)
+    
     Write-Info "Running ALPR Integrated Server..."
     
     # Check if Python is installed
@@ -174,7 +197,7 @@ function Run-Server {
     Enter-VirtualEnvironment
     
     # Start the server
-    Start-Server
+    Start-Server -EnableVin $EnableVin
 }
 
 function Clean-Environment {
@@ -217,6 +240,9 @@ function Clean-Environment {
 # Main script execution
 Write-Info "ALPR Integrated Server Setup Script"
 Write-Info "Action: $Action"
+if ($Vin -and $Action -eq "run") {
+    Write-Info "VIN Flag: Enabled"
+}
 Write-Info ""
 
 switch ($Action) {
@@ -224,7 +250,7 @@ switch ($Action) {
         Setup-Environment
     }
     "run" {
-        Run-Server
+        Run-Server -EnableVin $Vin
     }
     "clean" {
         Clean-Environment
