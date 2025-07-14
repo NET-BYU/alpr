@@ -1,10 +1,10 @@
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$true, Position=0)]
     [ValidateSet("setup", "run", "clean")]
     [string]$Action,
     
-    [Parameter(Mandatory=$false)]
-    [switch]$Vin
+    [Parameter(Mandatory=$false, Position=1)]
+    [string]$Mode
 )
 
 function Write-Info {
@@ -173,15 +173,24 @@ function Setup-Environment {
     
     Write-Info ""
     Write-Info "Setup completed successfully!"
-    Write-Info "To run the server, use: .\server.ps1 run"
-    # Write-Info "To run with VIN lookup, use: .\server.ps1 run --vin"
+    Write-Info "To run the server (basic mode), use: .\server.ps1 run"
+    Write-Info "To run with VIN lookup, use: .\server.ps1 run full"
     Write-Info ""
 }
 
 function Run-Server {
-    param([bool]$EnableVin)
+    param([string]$RunMode)
     
     Write-Info "Running ALPR Integrated Server..."
+    
+    # Determine if VIN should be enabled
+    $enableVin = $false
+    if ($RunMode -eq "full") {
+        $enableVin = $true
+        Write-Info "Running in FULL mode (VIN functionality enabled)"
+    } else {
+        Write-Info "Running in BASIC mode (VIN functionality disabled)"
+    }
     
     # Check if Python is installed
     $pythonCmd = Test-PythonInstalled
@@ -197,7 +206,7 @@ function Run-Server {
     Enter-VirtualEnvironment
     
     # Start the server
-    Start-Server -EnableVin $EnableVin
+    Start-Server -EnableVin $enableVin
 }
 
 function Clean-Environment {
@@ -240,8 +249,8 @@ function Clean-Environment {
 # Main script execution
 Write-Info "ALPR Integrated Server Setup Script"
 Write-Info "Action: $Action"
-if ($Vin -and $Action -eq "run") {
-    Write-Info "VIN Flag: Enabled"
+if ($Mode) {
+    Write-Info "Mode: $Mode"
 }
 Write-Info ""
 
@@ -250,7 +259,7 @@ switch ($Action) {
         Setup-Environment
     }
     "run" {
-        Run-Server -EnableVin $Vin
+        Run-Server -RunMode $Mode
     }
     "clean" {
         Clean-Environment
