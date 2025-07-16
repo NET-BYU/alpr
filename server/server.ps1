@@ -1,10 +1,7 @@
 param(
-    [Parameter(Mandatory=$true, Position=0)]
-    [ValidateSet("setup", "run", "clean")]
-    [string]$Action,
-    
-    [Parameter(Mandatory=$false, Position=1)]
-    [string]$Mode
+    [Parameter(Mandatory=$false, Position=0)]
+    [ValidateSet("setup", "run", "install", "clean", "autorun")]
+    [string]$Action = "run"
 )
 
 function Write-Info {
@@ -22,236 +19,137 @@ function Write-Error {
     Write-Host "[ERROR] $Message" -ForegroundColor Red
 }
 
-function Test-PythonInstalled {
-    Write-Info "Checking if Python is installed..."
-    
-    $pythonCommands = @("python", "python3", "python3.10", "python3.11", "python3.12")
-    
-    foreach ($cmd in $pythonCommands) {
-        try {
-            $version = & $cmd --version 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Info "Found Python: $version using command '$cmd'"
-                return $cmd
-            }
-        }
-        catch {
-            # Command not found, continue to next
-        }
-    }
-    
-    Write-Error "Python not found! Please install Python from the Microsoft Store or python.org"
-    Write-Info "Recommended: Install Python 3.10+ from Microsoft Store"
-    exit 1
-}
-
-function Test-VenvExists {
-    Write-Info "Checking if virtual environment exists..."
-    
-    if (Test-Path ".venv") {
-        Write-Info "Virtual environment found at .venv"
-        return $true
-    } else {
-        Write-Warning "Virtual environment not found"
-        return $false
-    }
-}
-
-function New-VirtualEnvironment {
-    param([string]$PythonCmd)
-    
-    Write-Info "Creating virtual environment..."
-    
-    try {
-        & $PythonCmd -m venv .venv
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to create virtual environment"
-        }
-        Write-Info "Virtual environment created successfully"
-    }
-    catch {
-        Write-Error "Failed to create virtual environment: $_"
-        exit 1
-    }
-}
-
-function Enter-VirtualEnvironment {
-    Write-Info "Activating virtual environment..."
-    
-    $activateScript = ".\.venv\Scripts\Activate.ps1"
-    
-    if (Test-Path $activateScript) {
-        try {
-            & $activateScript
-            Write-Info "Virtual environment activated"
-        }
-        catch {
-            Write-Error "Failed to activate virtual environment: $_"
-            exit 1
-        }
-    } else {
-        Write-Error "Virtual environment activation script not found at $activateScript"
-        exit 1
-    }
-}
-
-function Install-Requirements {
-    Write-Info "Installing required packages..."
-    
-    try {
-        python -m pip install --upgrade pip
-        python -m pip install -r req.txt
-        
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to install packages"
-        }
-        
-        Write-Info "Required packages installed successfully"
-    }
-    catch {
-        Write-Error "Failed to install requirements: $_"
-        exit 1
-    }
-}
-
-function Start-Server {
-    param([bool]$EnableVin)
-    
-    Write-Info "Starting ALPR Integrated Server..."
-    
-    if ($EnableVin) {
-        Write-Info "VIN lookup functionality: ENABLED"
-    } else {
-        Write-Info "VIN lookup functionality: DISABLED"
-    }
-    
-    if (-not (Test-Path "alpr_integrated_server.py")) {
-        Write-Error "alpr_integrated_server.py not found in current directory"
-        Write-Info "Make sure you're running this script from the correct directory"
-        exit 1
-    }
-    
-    try {
-        Write-Info "Server will be available at: http://localhost:5000"
-        Write-Info "Dashboard available at: http://localhost:5000/dashboard"
-        if ($EnableVin) {
-            Write-Info "VIN lookup available at: http://localhost:5000/vin"
-        }
-        Write-Info "Press Ctrl+C to stop the server"
-        Write-Info ""
-        
-        if ($EnableVin) {
-            $env:ENABLE_VIN = "true"
-        } else {
-            $env:ENABLE_VIN = "false"
-        }
-        
-        python alpr_integrated_server.py
-    }
-    catch {
-        Write-Error "Failed to start server: $_"
-        exit 1
-    }
-}
-
 function Setup-Environment {
-    Write-Info "Setting up ALPR Integrated Server environment..."
+    Write-Info "Setting up ALPR environment..."
     
-    # Check if Python is installed
-    $pythonCmd = Test-PythonInstalled
-    
-    # Check if venv exists, create if not
-    if (-not (Test-VenvExists)) {
-        New-VirtualEnvironment -PythonCmd $pythonCmd
+    # Check if Python is available
+    try {
+        $version = python --version 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Python not found"
+        }
+        Write-Info "Found Python: $version"
+    }
+    catch {
+        Write-Error "Python not found! Please install Python first."
+        exit 1
     }
     
-    # Activate virtual environment
-    Enter-VirtualEnvironment
+    # Create virtual environment
+    Write-Info "Creating virtual environment..."
+    python -m venv .venv
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to create virtual environment"
+        exit 1
+    }
     
-    # Install requirements
-    Install-Requirements
+    # Activate and install requirements
+    Write-Info "Activating virtual environment..."
+    & ".\.venv\Scripts\Activate.ps1"
     
-    Write-Info ""
+    Write-Info "Installing requirements..."
+    python -m pip install --upgrade pip
+    python -m pip install -r req.txt
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install requirements"
+        exit 1
+    }
+    
     Write-Info "Setup completed successfully!"
-    Write-Info "To run the server (basic mode), use: .\server.ps1 run"
-    Write-Info "To run with VIN lookup, use: .\server.ps1 run full"
-    Write-Info ""
 }
 
 function Run-Server {
-    param([string]$RunMode)
+    Write-Info "Starting ALPR server..."
     
-    Write-Info "Running ALPR Integrated Server..."
-    
-    # Determine if VIN should be enabled
-    $enableVin = $false
-    if ($RunMode -eq "full") {
-        $enableVin = $true
-        Write-Info "Running in FULL mode (VIN functionality enabled)"
-    } else {
-        Write-Info "Running in BASIC mode (VIN functionality disabled)"
-    }
-    
-    # Check if Python is installed
-    $pythonCmd = Test-PythonInstalled
-    
-    # Check if venv exists
-    if (-not (Test-VenvExists)) {
-        Write-Error "Virtual environment not found. Please run setup first:"
-        Write-Info ".\server.ps1 setup"
+    # Check if virtual environment exists
+    if (-not (Test-Path ".venv")) {
+        Write-Error "Virtual environment not found. Run setup first: .\server.ps1 setup"
         exit 1
     }
     
-    # Activate virtual environment
-    Enter-VirtualEnvironment
+    # Activate environment
+    & ".\.venv\Scripts\Activate.ps1"
     
-    # Start the server
-    Start-Server -EnableVin $enableVin
+    # Check if server file exists
+    if (-not (Test-Path "alpr_integrated_server.py")) {
+        Write-Error "alpr_integrated_server.py not found"
+        exit 1
+    }
+    
+    Write-Info "Server starting at http://localhost:5000"
+    Write-Info "Dashboard at http://localhost:5000/dashboard"
+    python alpr_integrated_server.py
 }
 
-function Clean-Environment {
-    Write-Info "Cleaning plates folder and removing data/log files..."
-
-    $platesFolder = "plates"
-    $filesToRemove = @("alpr_parsed_data.jsonl", "alpr_raw_data.jsonl", "event.log", "alpr_vin_lookup.json")
-
-    # Remove all files in plates folder
-    if (Test-Path $platesFolder) {
-        try {
-            Get-ChildItem -Path $platesFolder -File | Remove-Item -Force
-            Write-Info "Cleaned all files in '$platesFolder'"
-        }
-        catch {
-            Write-Warning "Failed to clean some files in '$platesFolder': $_"
-        }
-    } else {
-        Write-Warning "'$platesFolder' folder does not exist"
+function Install-Autorun {
+    Write-Info "Installing autorun task..."
+    
+    $scriptPath = Join-Path (Get-Location) "server.ps1"
+    $taskName = "ALPR_Server_Autostart"
+    
+    # Remove existing task if it exists
+    try {
+        Get-ScheduledTask -TaskName $taskName -ErrorAction Stop | Out-Null
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+        Write-Info "Removed existing task"
     }
+    catch {
+        Write-Info "No existing task found"
+    }
+    
+    # Create new task
+    $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptPath`" autorun"
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User "netlab"
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+    $principal = New-ScheduledTaskPrincipal -UserId "netlab" -LogonType Interactive
+    
+    try {
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "ALPR Server Autostart" | Out-Null
+        Write-Info "Autorun task installed successfully!"
+        Write-Info "Server will start automatically when user 'netlab' logs on"
+    }
+    catch {
+        Write-Error "Failed to install autorun task: $_"
+        Write-Info "Try running as Administrator"
+        exit 1
+    }
+}
 
-    # Remove specific files
+function Clean-Data {
+    Write-Info "Cleaning data files..."
+    
+    $filesToRemove = @(
+        "event.log",
+        "alpr_raw_data.jsonl", 
+        "alpr_parsed_data.jsonl", 
+        "alpr_vin_lookup.json"
+    )
+    
     foreach ($file in $filesToRemove) {
         if (Test-Path $file) {
-            try {
-                Remove-Item $file -Force
-                Write-Info "Removed file: $file"
-            }
-            catch {
-                Write-Warning "Failed to remove file: $file"
-            }
+            Remove-Item $file -Force
+            Write-Info "Removed: $file"
         } else {
-            Write-Info "File not found (skipped): $file"
+            Write-Info "Not found: $file"
         }
     }
-
-    Write-Info "Clean operation completed."
+    
+    Write-Info "Clean completed"
 }
 
-# Main script execution
-Write-Info "ALPR Integrated Server Setup Script"
+function Start-Autorun {
+    Write-Info "Starting ALPR server in autorun mode..."
+    
+    # Wait for system to boot
+    Start-Sleep -Seconds 30
+    
+    # Run the server
+    Run-Server
+}
+
+# Main execution
+Write-Info "ALPR Server Management Script"
 Write-Info "Action: $Action"
-if ($Mode) {
-    Write-Info "Mode: $Mode"
-}
 Write-Info ""
 
 switch ($Action) {
@@ -259,9 +157,15 @@ switch ($Action) {
         Setup-Environment
     }
     "run" {
-        Run-Server -RunMode $Mode
+        Run-Server
+    }
+    "install" {
+        Install-Autorun
     }
     "clean" {
-        Clean-Environment
+        Clean-Data
+    }
+    "autorun" {
+        Start-Autorun
     }
 }

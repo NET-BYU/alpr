@@ -11,8 +11,12 @@ import base64
 import yaml
 import requests
 import time
+import logging
 from datetime import datetime
 from collections import defaultdict
+
+# Suppress Flask's HTTP request logging
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 app = Flask(__name__)
 
@@ -42,12 +46,18 @@ if not os.path.exists(PLATES_DIR):
 # UTILITY FUNCTIONS
 # =====================================================================================
 
-def log_event(message):
+# Console output control
+CONSOLE_LOGGING = False  # Set to True to enable console output
+
+def log_event(message, show_in_console=False):
     """Log events to the event log file with timestamp"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with open(EVENT_LOG_FILE, 'a') as f:
         f.write(f"[{timestamp}] {message}\n")
-    print(f"[{timestamp}] {message}")
+    
+    # Only print to console if explicitly requested or if console logging is enabled
+    if show_in_console or CONSOLE_LOGGING:
+        print(f"[{timestamp}] {message}")
 
 def save_plate_image(data):
     """Extract and save plate crop JPEG from ALPR data"""
@@ -575,13 +585,13 @@ else:
 
 if __name__ == '__main__':
     # Initialize application
-    log_event("ALPR Integrated Server starting up...")
-    log_event(f"VIN functionality: {'ENABLED' if VIN_ENABLED else 'DISABLED'}")
-    log_event(f"Raw data: {os.path.abspath(RAW_OUTPUT_FILE)}")
-    log_event(f"Parsed data: {os.path.abspath(PARSED_OUTPUT_FILE)}")
-    log_event(f"Event log: {os.path.abspath(EVENT_LOG_FILE)}")
-    log_event(f"Plate images: {os.path.abspath(PLATES_DIR)}")
-    log_event("Configure openALPR to POST to: http://localhost:5000/alpr")
-    log_event("Server ready to receive data...")
+    log_event("ALPR Integrated Server starting up...", show_in_console=True)
+    log_event(f"VIN functionality: {'ENABLED' if VIN_ENABLED else 'DISABLED'}", show_in_console=True)
+    log_event(f"Raw data: {os.path.abspath(RAW_OUTPUT_FILE)}", show_in_console=True)
+    log_event(f"Parsed data: {os.path.abspath(PARSED_OUTPUT_FILE)}", show_in_console=True)
+    log_event(f"Event log: {os.path.abspath(EVENT_LOG_FILE)}", show_in_console=True)
+    log_event(f"Plate images: {os.path.abspath(PLATES_DIR)}", show_in_console=True)
+    log_event("Configure openALPR to POST to: http://localhost:5000/alpr", show_in_console=True)
+    log_event("Server ready to receive data...", show_in_console=True)
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
