@@ -60,10 +60,12 @@ function Setup-Environment {
 
 function Run-Server {
     Write-Info "Starting ALPR server..."
+    Set-Location -Path $PSScriptRoot
     
     # Check if virtual environment exists
     if (-not (Test-Path ".venv")) {
         Write-Error "Virtual environment not found. Run setup first: .\server.ps1 setup"
+        pause
         exit 1
     }
     
