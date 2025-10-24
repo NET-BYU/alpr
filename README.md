@@ -107,6 +107,28 @@ We've made this super easy with an automated setup script:
 python3.10 .\alpr_integrated_server.py
 ```
 
+### Step 2.5: Enable VIN Lookup (Optional)
+
+The server includes optional VIN (Vehicle Identification Number) lookup functionality that can retrieve vehicle details (make, model, year, etc.) from license plates.
+
+**To enable VIN lookup**, set the environment variable before starting the server:
+
+**PowerShell:**
+```powershell
+$env:ENABLE_VIN = "true"
+python alpr_integrated_server.py
+```
+
+**Or create a startup script** (`start_server_with_vin.bat`):
+```batch
+@echo off
+set ENABLE_VIN=true
+python alpr_integrated_server.py
+pause
+```
+
+When enabled, the dashboard will automatically look up and display vehicle information for detected license plates. VIN data is stored in `alpr_vin_lookup.json`.
+
 ### Step 3: Access Your Dashboard
 
 Once the server is running, open your web browser and visit:
