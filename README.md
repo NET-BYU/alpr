@@ -42,7 +42,7 @@ Now we'll connect your IP camera to Rekor Scout:
 
 ![program](media/program_camsetup.png)
 
-> **💡 Testing without a camera?** Check out the [image_stream](./image_stream) folder for instructions on using your own images instead of a physical IP camera. Great for testing and development!
+> **💡 Testing without a camera?** Skip the rest of these steps and go straight to Part 2. After you set up the dashboard, check out the [image_stream](./image_stream) folder for instructions on using your own images instead of a physical IP camera. Great for testing and development!
 
 ### Step 3: Test Your Camera Connection
 
