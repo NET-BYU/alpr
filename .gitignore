@@ -7,3 +7,6 @@ server/*.json
 server/*.log
 server/config.yaml
 camera/img/*
+
+image_stream/.venv/**
+image_stream/convert_images.py
