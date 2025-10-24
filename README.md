@@ -13,7 +13,7 @@ Before getting started, make sure you have:
 - ✅ **Windows computer** - On the same network as your camera(s)
 - ✅ **Basic networking knowledge** - Finding IP addresses and configuring ports
 
-**📂 Repository Structure**: This branch contains the server-side dashboard. For camera software setup, switch to the `lite` branch.
+**📂 Repository Structure**: This branch contains the server-side dashboard. For building IP cameras cameras on Rasbian, switch to the `lite` branch.
 
 ---
 
