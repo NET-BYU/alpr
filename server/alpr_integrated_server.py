@@ -9,11 +9,15 @@ import json
 import os
 import base64
 import yaml
+import pytz
 import requests
 import time
 import logging
 from datetime import datetime
 from collections import defaultdict
+
+from dotenv import dotenv_values
+import labmqtt
 
 # Suppress Flask's HTTP request logging
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
@@ -41,6 +45,28 @@ if VIN_ENABLED:
 # Initialize directories
 if not os.path.exists(PLATES_DIR):
     os.makedirs(PLATES_DIR)
+
+# Read in our env file
+env_config = dotenv_values(".env")
+if not env_config:  # i.e. if env_config is empty:
+    raise ImportError(
+        "Unable to find .env. Are you running `DFRobot.py` from the right dir?"
+    )
+
+# Establish MQTT connection
+mqtt_topic = "{}/{}/{}".format(
+    env_config.get("mqtt_sensor_topic"),
+    env_config.get("deployment_id"),
+    env_config.get("alpr_sensor_id"),
+)
+mqtt_conn = labmqtt.labMqttPublisher(
+    env_config.get("mqtt_hostname"),
+    env_config.get("mqtt_port"),
+    mqtt_topic,
+    env_config.get("mqtt_username"),
+    env_config.get("mqtt_password"),
+)
+mqtt_conn.connect()
 
 # =====================================================================================
 # UTILITY FUNCTIONS
@@ -186,6 +212,36 @@ def receive_alpr_data():
                 state = parsed_data['state_region'] or 'Unknown'
                 confidence = parsed_data.get('confidence', 0)
                 image_msg = f" (Image: {image_filename})" if image_filename else ""
+
+                # Send plate data to MQTT
+                # Get the time
+                mst = pytz.timezone("America/Denver")
+                dt = datetime.now()
+                offset = mst.utcoffset(dt).total_seconds() / 60 / 60
+                offset_sign = "-" if offset < 0 else "+"
+                offset_val = int(abs(offset))
+                if (offset_val < 10):
+                    offset_string = f"{offset_sign}0{offset_val}"
+                else:
+                    offset_string = f"{offset_sign}{offset_val}"
+
+                sampleTime = datetime.today()
+                sampleTime = sampleTime.strftime("%Y-%m-%d %H:%M:%S.%f{}".format(offset_string))
+
+                # Build the message
+                readings = []
+                readings.append({
+                    "metric_id": env_config.get("alpr_metric_id"),
+                    "metric_value": plate
+                })
+                mqttmsg = {
+                    "timestamp": sampleTime,
+                    "sensor_id": env_config.get("alpr_sensor_id"),
+                    "readings": readings
+                }
+
+                # Send the message
+                mqtt_conn.transmit_message(json.dumps(mqttmsg))
                 
                 log_event(f"LICENSE PLATE - {plate} ({state}) - {confidence:.1f}% confidence{image_msg}")
             else:

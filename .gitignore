@@ -10,3 +10,9 @@ camera/img/*
 
 image_stream/.venv/**
 image_stream/convert_images.py
+
+.venv
+venv
+__pycache__
+
+.env
