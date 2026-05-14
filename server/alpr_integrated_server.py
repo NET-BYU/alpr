@@ -229,15 +229,12 @@ def receive_alpr_data():
                 sampleTime = sampleTime.strftime("%Y-%m-%d %H:%M:%S.%f{}".format(offset_string))
 
                 # Build the message
-                readings = []
-                readings.append({
-                    "metric_id": env_config.get("alpr_metric_id"),
-                    "metric_value": plate
-                })
                 mqttmsg = {
                     "timestamp": sampleTime,
                     "sensor_id": env_config.get("alpr_sensor_id"),
-                    "readings": readings
+                    "metric_id": env_config.get("alpr_metric_id"),
+                    "plate": plate,
+                    "state": state
                 }
 
                 # Send the message
