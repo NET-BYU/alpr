@@ -50,7 +50,7 @@ if not os.path.exists(PLATES_DIR):
 env_config = dotenv_values(".env")
 if not env_config:  # i.e. if env_config is empty:
     raise ImportError(
-        "Unable to find .env. Are you running `DFRobot.py` from the right dir?"
+        "Unable to find .env. Are you running `alpr_integrated_server.py` from the right dir?"
     )
 
 # Establish MQTT connection
