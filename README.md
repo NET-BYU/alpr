@@ -2,7 +2,7 @@
 
 Welcome to your own **Automatic License Plate Recognition (ALPR) dashboard**! This project gives you a powerful, local alternative to Rekor Scout's online dashboard, letting you keep all your license plate data on your own computer instead of in the cloud.
 
-> **🤖 AI-Powered Development**: This entire dashboard was created with Anthropic's Claude Sonnet AI as an experiment in AI-programming. Not a single line of human-written code exists - even this documentation was AI-generated!
+> **🤖 AI-Powered Development**: This entire dashboard was created with Anthropic's Claude Sonnet AI as an experiment in AI-programming. Some human edits have since been made
 
 ## 📋 What You'll Need
 
@@ -30,19 +30,22 @@ First, we'll get the official Rekor Scout software running on your Windows machi
 
 ![program](media/program_empty.png)
 
+> **💡 Testing without a camera?** Skip the rest of these steps and go straight to Part 2. After you set up the dashboard, check out the [image_stream](./image_stream) folder for instructions on using your own images instead of a physical IP camera. Great for testing and development!
+
 ### Step 2: Add Your Camera
 
 Now we'll connect your IP camera to Rekor Scout:
 
-1. **Click "Add Camera"** in the main interface
-2. **Select camera type**: Choose `IP Camera (Manual)` from the dropdown
-3. **Enter camera URL**: Use the format `http://<IP-ADDR>:<PORT>`
-   - Replace `<IP-ADDR>` with your camera's IP address (e.g., `192.168.1.100`)
-   - Replace `<PORT>` with your camera's port (usually `8080`)
+1. **In the Cameras section** on the left of the main interface click 'Add'
+2. **If your camera's IP address is known**:
+   - Click 'Add Camera'
+   - Enter the IP address of your camera and port to connect on (often port 80)
+3. **If your camera's IP address is not known**:
+   - Under 'Camera type' select 'IP Camera (Auto Discover)
+   - Click 'Discover Devices'
+
 
 ![program](media/program_camsetup.png)
-
-> **💡 Testing without a camera?** Skip the rest of these steps and go straight to Part 2. After you set up the dashboard, check out the [image_stream](./image_stream) folder for instructions on using your own images instead of a physical IP camera. Great for testing and development!
 
 ### Step 3: Test Your Camera Connection
 
@@ -64,12 +67,12 @@ Now we'll connect your IP camera to Rekor Scout:
 
 ## 🌐 Part 2: Setting Up Your Local Dashboard
 
-Now for the exciting part - running your own local dashboard that keeps all data on your computer!
+Now we will set up the local dashboard which stores data locally, and broadcasts MQTT messages to the database
 
 ### Why Use a Local Dashboard?
 
-- 📊 **Data Privacy**: All license plate data stays on your computer
-- 🚀 **Performance**: Faster loading and no internet dependency
+- 📊 **Data Privacy**: All license plate is controlled by you
+- 🚀 **Performance**: Faster loading times
 - 🛠️ **Customization**: Modify the dashboard to fit your needs
 - 💰 **Cost Savings**: No additional cloud storage fees
 
@@ -83,12 +86,7 @@ Now for the exciting part - running your own local dashboard that keeps all data
 2. **Copy the configuration template**:
    - Find the file named `config.template`
    - Make a copy and rename it to `config.yaml`
-
-3. **Edit your configuration**:
-   - Open `config.yaml` in any text editor
-   - Add your camera IP addresses to the camera list
-   - Adjust file paths and settings as needed
-   - Save your changes
+   - Adjust filepaths and settings as needed
 
 ### Step 2: Set Up the Server Environment
 
@@ -96,10 +94,10 @@ We've made this super easy with an automated setup script:
 
 ```powershell
 # One-time setup (installs Python, creates virtual environment, installs dependencies)
-.\setup.ps1 setup
+.\server.ps1 setup
 
 # Run the server (use this every time you want to start the dashboard)
-.\setup.ps1 run
+.\server.ps1
 ```
 
 **Alternative manual method**:
@@ -134,7 +132,6 @@ When enabled, the dashboard will automatically look up and display vehicle infor
 Once the server is running, open your web browser and visit:
 
 - 🏠 **Main Dashboard**: `http://localhost:5000/dashboard`
-- 📹 **Camera Grid View**: `http://localhost:5000/cameras`
 - 📊 **API Endpoints**: `http://localhost:5000/api/plates`
 
 Your dashboard will look like this:
@@ -188,20 +185,6 @@ All file names and locations can be customized in your `config.yaml` file.
 
 ---
 
-## 🚀 Dashboard Features
-
-Your local dashboard includes:
-
-- 📊 **Real-time plate detection display**
-- 🎥 **Live camera feeds** (single view and grid view)
-- 🔍 **Search and filter capabilities**
-- 📈 **Statistics and analytics**
-- 🔄 **Auto-refresh functionality**
-- 📱 **Mobile-responsive design**
-- 🚨 **Real-time notifications for new detections**
-
----
-
 ## 🆘 Troubleshooting
 
 ### Camera Not Connecting?
@@ -211,7 +194,7 @@ Your local dashboard includes:
 
 ### Server Won't Start?
 - Make sure Python is installed (`python --version`)
-- Run the setup script: `.\setup.ps1 setup`
+- Run the setup script: `.\server.ps1 setup`
 - Check that port 5000 isn't being used by another application
 
 ### No License Plates Detected?
