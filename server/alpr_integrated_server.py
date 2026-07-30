@@ -18,6 +18,7 @@ from collections import defaultdict
 
 from dotenv import dotenv_values
 import labmqtt
+from plate_dedup import AlprEventDeduper
 
 # Suppress Flask's HTTP request logging
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
@@ -37,6 +38,8 @@ PARSED_OUTPUT_FILE = config.get('parsed_output_file', 'alpr_parsed_data.jsonl')
 EVENT_LOG_FILE = config.get('event_log_file', 'event.log')
 PLATES_DIR = config.get('plates_dir', 'plates')
 VIN_RESULTS_FILE = config.get('vin_results_file', 'alpr_vin_lookup.json')
+
+plate_deduper = AlprEventDeduper(parsed_output_file=PARSED_OUTPUT_FILE)
 
 # API Configuration (only if VIN is enabled)
 if VIN_ENABLED:
@@ -202,6 +205,12 @@ def receive_alpr_data():
             parsed_data = parse_license_plate_data(json_data)
             
             if parsed_data and parsed_data.get('license_plate'):
+                if not plate_deduper.should_record(json_data):
+                    log_event(f"Suppressing duplicate ALPR event: {parsed_data.get('license_plate')}")
+                    return jsonify({'status': 'suppressed', 'message': 'Duplicate ALPR event suppressed'}), 200
+
+                plate_deduper.mark_recorded(json_data, parsed_data)
+
                 # Save plate image
                 image_filename = save_plate_image(json_data)
                 if image_filename:
