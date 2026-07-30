@@ -66,6 +66,17 @@
             </div>
             
             <div class="control-group">
+                <label for="recent-window">Recent window:</label>
+                <select id="recent-window" aria-label="Recent detection window">
+                    <option value="5">5 min</option>
+                    <option value="10" selected>10 min</option>
+                    <option value="30">30 min</option>
+                    <option value="60">1 hour</option>
+                    <option value="120">2 hours</option>
+                </select>
+            </div>
+
+            <div class="control-group">
                 <label>
                     <input type="checkbox" id="auto-refresh" checked> 
                     Auto-refresh

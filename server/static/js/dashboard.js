@@ -1,14 +1,35 @@
 let platesData = [];
 let sortColumn = 'timestamp';
 let sortDirection = 'desc';
-let lastEventCount = 0;
+let seenEvents = new Set();
+let hasInitializedEvents = false;
+
+function getRecentWindowMinutes() {
+    const select = document.getElementById('recent-window');
+    if (!select) {
+        return 10;
+    }
+
+    const value = Number.parseInt(select.value, 10);
+    return Number.isFinite(value) && value > 0 ? value : 10;
+}
+
+function getRecentPlates(plates, windowMinutes = getRecentWindowMinutes()) {
+    const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
+
+    return plates.filter(plate => {
+        if (!plate.timestamp) return false;
+        const plateTime = new Date(plate.timestamp);
+        return !Number.isNaN(plateTime.getTime()) && plateTime >= cutoff;
+    });
+}
 
 // Fetch and display plates data
 async function fetchPlates() {
     try {
         const response = await fetch('/api/plates');
         const data = await response.json();
-        platesData = data;
+        platesData = getRecentPlates(data, getRecentWindowMinutes());
         updateTable();
         updateStats();
         updateRegionFilter();
@@ -23,18 +44,29 @@ async function checkEvents() {
     try {
         const response = await fetch('/api/events');
         const events = await response.json();
-        
-        if (events.length > lastEventCount) {
-            const newEvents = events.slice(lastEventCount);
-            newEvents.forEach(event => {
-                if (event.includes('LICENSE PLATE')) {
-                    showNotification(event, 'license');
-                } else if (event.includes('heartbeat')) {
-                    showNotification(event, 'heartbeat');
-                }
-            });
+
+        if (!hasInitializedEvents) {
+            events.forEach(event => seenEvents.add(event));
+            hasInitializedEvents = true;
+            return;
         }
-        lastEventCount = events.length;
+
+        const newEvents = events.filter(event => {
+            if (seenEvents.has(event)) {
+                return false;
+            }
+
+            seenEvents.add(event);
+            return true;
+        });
+
+        newEvents.forEach(event => {
+            if (event.includes('LICENSE PLATE')) {
+                showNotification(event, 'license');
+            } else if (event.includes('heartbeat')) {
+                showNotification(event, 'heartbeat');
+            }
+        });
     } catch (error) {
         console.error('Error checking events:', error);
     }
@@ -271,6 +303,9 @@ document.getElementById('sort-by').addEventListener('change', (e) => {
 
 document.getElementById('filter-region').addEventListener('change', updateTable);
 document.getElementById('search').addEventListener('input', updateTable);
+document.getElementById('recent-window').addEventListener('change', () => {
+    fetchPlates();
+});
 
 document.querySelectorAll('th.sortable').forEach(th => {
     th.addEventListener('click', () => {
