@@ -66,7 +66,10 @@ mqtt_conn = labmqtt.labMqttPublisher(
     env_config.get("mqtt_username"),
     env_config.get("mqtt_password"),
 )
-mqtt_conn.connect()
+try:
+    mqtt_conn.connect()
+except Exception as e:
+    print(f"Error connecting to MQTT broker: {e}")
 
 # =====================================================================================
 # UTILITY FUNCTIONS
