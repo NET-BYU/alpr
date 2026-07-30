@@ -68,6 +68,7 @@ mqtt_conn = labmqtt.labMqttPublisher(
 )
 try:
     mqtt_conn.connect()
+    mqtt_online = True
 except Exception as e:
     print(f"Error connecting to MQTT broker: {e}")
 
@@ -241,7 +242,8 @@ def receive_alpr_data():
                 }
 
                 # Send the message
-                mqtt_conn.transmit_message(json.dumps(mqttmsg))
+                if mqtt_online:
+                    mqtt_conn.transmit_message(json.dumps(mqttmsg))
                 
                 log_event(f"LICENSE PLATE - {plate} ({state}) - {confidence:.1f}% confidence{image_msg}")
             else:
